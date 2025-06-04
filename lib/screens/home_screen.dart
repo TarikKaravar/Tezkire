@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_app/services/bottom_menu.dart';
+import 'package:flutter_app/screens/profile_screen.dart';
+import 'package:flutter_app/screens/notification_screen.dart';
+import 'package:flutter_app/screens/setting_screen.dart';
 import 'package:flutter_app/services/prayer_time_service.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -10,10 +14,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
   Map<String, String> prayerTimes = {};
   bool isLoading = true;
   String currentDate = '';
-  int _selectedIndex = 0;
 
   final Map<String, String> turkishPrayerNames = {
     'Fajr': 'SABAH',
@@ -44,7 +48,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchPrayerTimes() async {
     setState(() => isLoading = true);
-
     try {
       final service = PrayerTimeService();
       final times = await service.fetchPrayerTimesForDate(
@@ -52,7 +55,6 @@ class _HomeScreenState extends State<HomeScreen> {
         city: 'Istanbul',
         country: 'Turkey',
       );
-
       setState(() {
         prayerTimes = times;
         isLoading = false;
@@ -65,9 +67,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildMainContent(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+  Widget _buildPrayerContent(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
       children: [
@@ -84,13 +85,6 @@ class _HomeScreenState extends State<HomeScreen> {
               bottomLeft: Radius.circular(20),
               bottomRight: Radius.circular(20),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
           child: Text(
             'Namaz Vakitleri',
@@ -111,7 +105,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
                           'Bugünün Namaz Vakitleri',
@@ -130,12 +123,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        ...prayerTimes.entries.map((entry) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
+                        ...prayerTimes.entries.map((entry) => Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
                               child: Card(
                                 elevation: 4,
                                 shape: RoundedRectangleBorder(
@@ -143,18 +132,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: colorScheme.surface,
-                                    borderRadius: BorderRadius.circular(16),
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        colorScheme.surface,
-                                        colorScheme.surface.withOpacity(0.9),
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                  ),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
@@ -178,25 +155,21 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                               ),
-                            ),
-                          );
-                        }),
+                            )),
                         const SizedBox(height: 20),
                         ElevatedButton(
                           onPressed: _fetchPrayerTimes,
                           style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                             backgroundColor: colorScheme.primary,
+                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            elevation: 2,
                           ),
                           child: Text(
                             'Vakitleri Yenile',
                             style: GoogleFonts.poppins(
                               fontSize: 16,
-                              fontWeight: FontWeight.w500,
                               color: colorScheme.onPrimary,
                             ),
                           ),
@@ -210,43 +183,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBottomNavigationBar(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-      ),
-      child: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        selectedItemColor: colorScheme.primary,
-        unselectedItemColor: colorScheme.onSurface.withOpacity(0.6),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        selectedLabelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-        unselectedLabelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w400),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Ana Sayfa'),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications_rounded), label: 'Bildirimler'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profil'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_rounded), label: 'Ayarlar'),
-        ],
-      ),
-    );
-  }
-
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -255,10 +191,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screens = [
+      _buildPrayerContent(context),
+      const NotificationScreen(),
+      const ProfileScreen(),
+      const SettingsScreen(),
+    ];
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SafeArea(child: _buildMainContent(context)),
-      bottomNavigationBar: _buildBottomNavigationBar(context),
+      body: SafeArea(child: screens[_selectedIndex]),
+      bottomNavigationBar: BottomMenu(
+        selectedIndex: _selectedIndex,
+        onItemTapped: _onItemTapped,
+      ),
     );
   }
 }
