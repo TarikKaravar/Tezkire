@@ -45,5 +45,17 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Added permissions for image_picker -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need access to your photo library to set a profile picture.</string>
+	<!-- Optional: Add camera permission in case you add camera functionality later -->
+	<key>NSCameraUsageDescription</key>
+	<string>We need access to your camera to take a profile picture.</string>
+	<!-- Optional: Add permission to save photos to the library (if needed) -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>We need to save your profile picture to your photo library.</string>
+	<!-- Ensure proper status bar appearance -->
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
 </dict>
 </plist>
