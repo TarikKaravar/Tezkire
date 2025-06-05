@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_app/screens/compass_screen.dart';
+import 'package:flutter_app/screens/compass_screen.dart';
 
 class BottomMenu extends StatelessWidget {
   final int selectedIndex;
@@ -39,32 +41,38 @@ class BottomMenu extends StatelessWidget {
           child: Row(
             children: [
               _buildNavItem(
-                context, 
-                icon: Icons.home_rounded, 
-                label: 'Ana Sayfa', 
+                context,
+                icon: Icons.home_rounded,
+                label: 'Ana Sayfa',
                 index: 0,
-                width: screenWidth / 4,
+                width: screenWidth / 5,
               ),
               _buildNavItem(
-                context, 
-                icon: Icons.notifications_rounded, 
-                label: 'Bildirim', 
+                context,
+                icon: Icons.notifications_rounded,
+                label: 'Bildirim',
                 index: 1,
-                width: screenWidth / 4,
+                width: screenWidth / 5,
+              ),
+              _buildCompassItem(
+                context,
+                icon: Icons.explore_rounded,
+                label: 'Kıble',
+                width: screenWidth / 5,
               ),
               _buildNavItem(
-                context, 
-                icon: Icons.person_rounded, 
-                label: 'Profil', 
+                context,
+                icon: Icons.person_rounded,
+                label: 'Profil',
                 index: 2,
-                width: screenWidth / 4,
+                width: screenWidth / 5,
               ),
               _buildNavItem(
-                context, 
-                icon: Icons.settings_rounded, 
-                label: 'Ayarlar', 
+                context,
+                icon: Icons.settings_rounded,
+                label: 'Ayarlar',
                 index: 3,
-                width: screenWidth / 4,
+                width: screenWidth / 5,
               ),
             ],
           ),
@@ -112,7 +120,7 @@ class BottomMenu extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Container(
+            SizedBox(
               width: width - 8,
               child: Text(
                 label,
@@ -121,6 +129,59 @@ class BottomMenu extends StatelessWidget {
                   fontSize: 11,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   color: isSelected ? selectedColor : unselectedColor,
+                  height: 1.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompassItem(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required double width,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final iconColor = Colors.blueGrey;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => CompassScreen()),
+        );
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: width,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: const BoxDecoration(
+          color: Colors.transparent,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 24,
+              color: iconColor,
+            ),
+            const SizedBox(height: 4),
+            SizedBox(
+              width: width - 8,
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: iconColor,
                   height: 1.2,
                 ),
                 maxLines: 1,
