@@ -16,8 +16,8 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   bool _isLoading = true;
   String? _errorMessage;
   StreamSubscription<MagnetometerEvent>? _magnetometerSubscription;
+  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
   bool _compassAvailable = false;
-  Timer? _simulationTimer;
   
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -25,27 +25,31 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   final double _kaabaLat = 21.4225;
   final double _kaabaLng = 39.8262;
 
-  // Filtreleme ve kalibrasyon
+  // Sensor verileri için
+  List<double> _magnetometerValues = [0, 0, 0];
+  List<double> _accelerometerValues = [0, 0, 0];
+  
+  // Filtreleme için
   List<double> _headingHistory = [];
-  double _filteredHeading = 0.0;
-  static const double _filterFactor = 0.15;
+  static const int _historySize = 10;
+  static const double _smoothingFactor = 0.8;
 
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
     _initialize();
-    _startCompassListening();
+    _startSensorListening();
   }
 
   void _initializeAnimations() {
     _pulseController = AnimationController(
-      duration: Duration(milliseconds: 1500),
+      duration: Duration(milliseconds: 1200),
       vsync: this,
     );
     _pulseAnimation = Tween<double>(
       begin: 1.0,
-      end: 1.2,
+      end: 1.15,
     ).animate(CurvedAnimation(
       parent: _pulseController,
       curve: Curves.easeInOut,
@@ -85,8 +89,8 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
       }
 
       _userPosition = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 10),
+        desiredAccuracy: LocationAccuracy.best,
+        timeLimit: Duration(seconds: 15),
       );
 
       setState(() {
@@ -95,86 +99,133 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
 
     } catch (e) {
       setState(() {
-        _errorMessage = 'Hata: ${e.toString()}';
+        _errorMessage = 'Konum hatası: ${e.toString()}';
         _isLoading = false;
       });
     }
   }
 
-  void _startCompassListening() {
+  void _startSensorListening() {
     try {
+      // Manyetometre dinleme
       _magnetometerSubscription = magnetometerEvents.listen(
         (MagnetometerEvent event) {
-          if (mounted) {
-            double rawHeading = _calculateHeading(event.x, event.y, event.z);
-            _filteredHeading = _applySmoothing(rawHeading);
-            
-            setState(() {
-              _deviceHeading = _filteredHeading;
-              _compassAvailable = true;
-            });
-          }
+          _magnetometerValues = [event.x, event.y, event.z];
+          _updateHeading();
         },
         onError: (error) {
-          _startSimulationMode();
+          setState(() {
+            _compassAvailable = false;
+            _errorMessage = 'Manyetometre hatası: Sensör verileri alınamıyor. Cihazı kalibre edin.';
+          });
         },
       );
-      
-      Timer(Duration(seconds: 3), () {
-        if (!_compassAvailable) {
-          _startSimulationMode();
-        }
-      });
-      
+
+      // Akselerometre dinleme
+      _accelerometerSubscription = accelerometerEvents.listen(
+        (AccelerometerEvent event) {
+          _accelerometerValues = [event.x, event.y, event.z];
+          _updateHeading();
+        },
+        onError: (error) {
+          setState(() {
+            _compassAvailable = false;
+            _errorMessage = 'Akselerometre hatası: Sensör verileri alınamıyor. Cihazı kalibre edin.';
+          });
+        },
+      );
+
     } catch (e) {
-      _startSimulationMode();
+      setState(() {
+        _compassAvailable = false;
+        _errorMessage = 'Sensör başlatma hatası: $e';
+      });
     }
   }
 
-  double _calculateHeading(double x, double y, double z) {
-    double heading = atan2(y, x) * (180 / pi);
+  void _updateHeading() {
+    if (!mounted) return;
+
+    try {
+      double magneticStrength = sqrt(
+        _magnetometerValues[0] * _magnetometerValues[0] +
+        _magnetometerValues[1] * _magnetometerValues[1] +
+        _magnetometerValues[2] * _magnetometerValues[2]
+      );
+
+      if (magneticStrength < 15.0) {
+        print('Zayıf manyetik alan: $magneticStrength');
+        setState(() {
+          _compassAvailable = false;
+          _errorMessage = 'Zayıf manyetik alan algılandı. Lütfen cihazı kalibre edin.';
+        });
+        return;
+      }
+
+      double heading = _calculateHeadingWithTilt();
+      double smoothedHeading = _applySmoothingFilter(heading);
+
+      print('Cihaz Yönelimi: $smoothedHeading, Kıble Açısı: ${_calculateQiblaAngle(_userPosition!.latitude, _userPosition!.longitude)}');
+
+      setState(() {
+        _deviceHeading = smoothedHeading;
+        _compassAvailable = true;
+      });
+
+    } catch (e) {
+      print('Başlık hesaplama hatası: $e');
+    }
+  }
+
+  double _calculateHeadingWithTilt() {
+    double magX = _magnetometerValues[0];
+    double magY = _magnetometerValues[1];
+    double magZ = _magnetometerValues[2];
+    
+    double accX = _accelerometerValues[0];
+    double accY = _accelerometerValues[1];
+    double accZ = _accelerometerValues[2];
+
+    double accMagnitude = sqrt(accX * accX + accY * accY + accZ * accZ);
+    if (accMagnitude == 0) return _deviceHeading;
+
+    accX /= accMagnitude;
+    accY /= accMagnitude;
+    accZ /= accMagnitude;
+
+    double hX = magY * accZ - magZ * accY;
+    double hY = magZ * accX - magX * accZ;
+    
+    double heading = atan2(hY, hX) * 180 / pi;
+    
     heading = (heading + 360) % 360;
-    // Android ve iOS için orientasyon düzeltmesi
-    heading = (360 - heading) % 360;
+    
     return heading;
   }
 
-  double _applySmoothing(double newHeading) {
+  double _applySmoothingFilter(double newHeading) {
     _headingHistory.add(newHeading);
-    if (_headingHistory.length > 5) {
+    if (_headingHistory.length > _historySize) {
       _headingHistory.removeAt(0);
     }
     
     if (_headingHistory.length == 1) return newHeading;
     
-    // Dairesel ortalama hesapla (360° geçişi için)
     double sinSum = 0, cosSum = 0;
-    for (double heading in _headingHistory) {
-      double radians = heading * pi / 180;
-      sinSum += sin(radians);
-      cosSum += cos(radians);
+    double totalWeight = 0;
+    
+    for (int i = 0; i < _headingHistory.length; i++) {
+      double weight = (i + 1) / _headingHistory.length;
+      double radians = _headingHistory[i] * pi / 180;
+      sinSum += sin(radians) * weight;
+      cosSum += cos(radians) * weight;
+      totalWeight += weight;
     }
     
-    double avgRadians = atan2(sinSum / _headingHistory.length, cosSum / _headingHistory.length);
-    return (avgRadians * 180 / pi + 360) % 360;
-  }
-
-  void _startSimulationMode() {
-    setState(() {
-      _compassAvailable = false;
-    });
+    double avgRadians = atan2(sinSum / totalWeight, cosSum / totalWeight);
+    double smoothedHeading = (avgRadians * 180 / pi + 360) % 360;
     
-    double simulatedHeading = 0.0;
-    _simulationTimer = Timer.periodic(Duration(milliseconds: 100), (timer) {
-      if (mounted) {
-        simulatedHeading = (simulatedHeading + 1) % 360;
-        setState(() {
-          _deviceHeading = simulatedHeading;
-        });
-      } else {
-        timer.cancel();
-      }
-    });
+    return smoothedHeading;
   }
 
   double _calculateQiblaAngle(double userLat, double userLng) {
@@ -185,26 +236,35 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
 
     double deltaLng = kaabaLngRad - userLngRad;
     
-    double x = sin(deltaLng) * cos(kaabaLatRad);
-    double y = cos(userLatRad) * sin(kaabaLatRad) - 
+    double y = sin(deltaLng) * cos(kaabaLatRad);
+    double x = cos(userLatRad) * sin(kaabaLatRad) - 
                sin(userLatRad) * cos(kaabaLatRad) * cos(deltaLng);
 
-    double bearing = atan2(x, y);
-    return (bearing * 180 / pi + 360) % 360;
+    double bearing = atan2(y, x);
+    
+    double qiblaAngle = (bearing * 180 / pi + 360) % 360;
+    
+    return qiblaAngle;
   }
 
-  // Kıble okun ekranda gösterileceği açı (telefon yöneliminden bağımsız)
   double _getQiblaDisplayAngle(double qiblaAngle) {
-    // Kıble açısından cihaz yönelimini çıkar
-    return (qiblaAngle - _deviceHeading + 360) % 360;
+    double displayAngle = (qiblaAngle - _deviceHeading + 360) % 360;
+    return displayAngle;
   }
 
   bool _isQiblaAligned() {
     if (_userPosition == null) return false;
+
     final qiblaAngle = _calculateQiblaAngle(_userPosition!.latitude, _userPosition!.longitude);
-    final displayAngle = _getQiblaDisplayAngle(qiblaAngle);
-    // Üst kısım (±20 derece tolerans)
-    return displayAngle <= 20 || displayAngle >= 340;
+    double angleDiff = (qiblaAngle - _deviceHeading + 360) % 360;
+
+    return angleDiff <= 15 || angleDiff >= 345;
+  }
+
+  void _triggerHapticFeedback() {
+    if (_isQiblaAligned()) {
+      HapticFeedback.lightImpact();
+    }
   }
 
   @override
@@ -218,23 +278,42 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
         elevation: 0,
         actions: [
           IconButton(
+            icon: Icon(Icons.my_location_rounded),
+            onPressed: _recalibrate,
+          ),
+          IconButton(
             icon: Icon(Icons.refresh_rounded),
-            onPressed: () {
-              setState(() {
-                _isLoading = true;
-                _errorMessage = null;
-                _compassAvailable = false;
-              });
-              _magnetometerSubscription?.cancel();
-              _simulationTimer?.cancel();
-              _initialize();
-              _startCompassListening();
-            },
+            onPressed: _refresh,
           ),
         ],
       ),
       body: _buildBody(),
     );
+  }
+
+  void _recalibrate() {
+    _headingHistory.clear();
+    _triggerHapticFeedback();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Pusula kalibre edildi'),
+        duration: Duration(seconds: 2),
+        backgroundColor: Colors.teal[600],
+      ),
+    );
+  }
+
+  void _refresh() {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _compassAvailable = false;
+    });
+    _magnetometerSubscription?.cancel();
+    _accelerometerSubscription?.cancel();
+    _headingHistory.clear();
+    _initialize();
+    _startSensorListening();
   }
 
   Widget _buildBody() {
@@ -249,8 +328,8 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
             ),
             SizedBox(height: 20),
             Text(
-              'Konum tespit ediliyor...',
-              style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+              'Konum ve sensörler hazırlanıyor...',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -272,14 +351,14 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                 style: TextStyle(fontSize: 16, color: Colors.grey[700]),
               ),
               SizedBox(height: 20),
+              Text(
+                'Cihazı 8 şeklinde hareket ettirerek kalibre edin veya GPS\'i kontrol edin.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              SizedBox(height: 20),
               ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _isLoading = true;
-                    _errorMessage = null;
-                  });
-                  _initialize();
-                },
+                onPressed: _refresh,
                 icon: Icon(Icons.refresh),
                 label: Text('Tekrar Dene'),
                 style: ElevatedButton.styleFrom(
@@ -295,9 +374,16 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
 
     if (_userPosition == null) {
       return Center(
-        child: Text(
-          'Konum verisi bekleniyor...',
-          style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Colors.teal[700]),
+            SizedBox(height: 20),
+            Text(
+              'Konum verisi bekleniyor...',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+          ],
         ),
       );
     }
@@ -310,10 +396,13 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
     final qiblaDisplayAngle = _getQiblaDisplayAngle(qiblaAngle);
     final isAligned = _isQiblaAligned();
 
+    if (isAligned) {
+      _triggerHapticFeedback();
+    }
+
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Durum göstergesi
           Container(
             margin: EdgeInsets.all(20),
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -335,7 +424,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                 ),
                 SizedBox(width: 8),
                 Text(
-                  _compassAvailable ? 'Sensör Aktif' : 'Simülasyon Modu',
+                  _compassAvailable ? 'Sensör Aktif' : 'Sensör Hatası',
                   style: TextStyle(
                     color: _compassAvailable ? Colors.green[700] : Colors.orange[700],
                     fontWeight: FontWeight.bold,
@@ -345,46 +434,43 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
             ),
           ),
 
-          // Ana pusula
           Container(
-            width: 350,
-            height: 350,
+            width: 360,
+            height: 360,
             margin: EdgeInsets.symmetric(horizontal: 20),
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Dış çember - hizalama göstergesi
                 AnimatedContainer(
-                  duration: Duration(milliseconds: 300),
-                  width: 340,
-                  height: 340,
+                  duration: Duration(milliseconds: 200),
+                  width: 350,
+                  height: 350,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: isAligned ? Colors.green : Colors.grey[300]!,
-                      width: isAligned ? 8 : 4,
+                      width: isAligned ? 6 : 3,
                     ),
                     boxShadow: isAligned ? [
                       BoxShadow(
-                        color: Colors.green.withOpacity(0.3),
+                        color: Colors.green.withOpacity(0.4),
                         blurRadius: 20,
-                        spreadRadius: 5,
+                        spreadRadius: 3,
                       ),
                     ] : [],
                   ),
                 ),
 
-                // Ana pusula gövdesi
                 Container(
-                  width: 320,
-                  height: 320,
+                  width: 330,
+                  height: 330,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.white,
                     border: Border.all(color: Colors.teal[700]!, width: 3),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withOpacity(0.15),
                         blurRadius: 15,
                         offset: Offset(0, 5),
                       ),
@@ -393,29 +479,25 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      // Pusula işaretleri ve harfler
                       _buildCompassMarks(),
-                      
-                      // Merkez noktası
                       Container(
-                        width: 16,
-                        height: 16,
+                        width: 18,
+                        height: 18,
                         decoration: BoxDecoration(
                           color: Colors.teal[700],
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                          border: Border.all(color: Colors.white, width: 3),
                         ),
                       ),
                     ],
                   ),
                 ),
 
-                // DİNAMİK KIBLE GÖSTERGESİ - Bu her zaman Kabe'yi gösterir!
                 Transform.rotate(
                   angle: qiblaDisplayAngle * pi / 180,
                   child: Container(
-                    width: 350,
-                    height: 350,
+                    width: 360,
+                    height: 360,
                     child: Align(
                       alignment: Alignment.topCenter,
                       child: AnimatedBuilder(
@@ -426,18 +508,17 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                // Kıble etiketi
                                 Container(
                                   margin: EdgeInsets.only(top: 8),
-                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                   decoration: BoxDecoration(
-                                    color: isAligned ? Colors.green : Colors.teal[600],
-                                    borderRadius: BorderRadius.circular(15),
+                                    color: isAligned ? Colors.green[600] : Colors.teal[600],
+                                    borderRadius: BorderRadius.circular(20),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black26,
-                                        blurRadius: 6,
-                                        offset: Offset(0, 2),
+                                        color: Colors.black.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: Offset(0, 3),
                                       ),
                                     ],
                                   ),
@@ -445,32 +526,31 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                                     'KIBLE',
                                     style: TextStyle(
                                       color: Colors.white,
-                                      fontSize: 12,
+                                      fontSize: 13,
                                       fontWeight: FontWeight.bold,
-                                      letterSpacing: 1,
+                                      letterSpacing: 1.2,
                                     ),
                                   ),
                                 ),
-                                SizedBox(height: 8),
-                                // Kıble oku
+                                SizedBox(height: 6),
                                 Container(
-                                  width: 50,
-                                  height: 50,
+                                  width: 52,
+                                  height: 52,
                                   decoration: BoxDecoration(
-                                    color: isAligned ? Colors.green : Colors.teal[600],
+                                    color: isAligned ? Colors.green[600] : Colors.teal[600],
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.3),
-                                        blurRadius: 8,
-                                        offset: Offset(0, 4),
+                                        color: Colors.black.withOpacity(0.4),
+                                        blurRadius: 10,
+                                        offset: Offset(0, 5),
                                       ),
                                     ],
                                   ),
                                   child: Icon(
                                     Icons.navigation_rounded,
                                     color: Colors.white,
-                                    size: 28,
+                                    size: 30,
                                   ),
                                 ),
                               ],
@@ -482,24 +562,23 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                   ),
                 ),
 
-                // Üst referans çizgisi
                 Container(
-                  width: 350,
-                  height: 350,
+                  width: 360,
+                  height: 360,
                   child: Align(
                     alignment: Alignment.topCenter,
                     child: Container(
-                      width: 6,
-                      height: 30,
+                      width: 8,
+                      height: 35,
                       margin: EdgeInsets.only(top: 2),
                       decoration: BoxDecoration(
-                        color: isAligned ? Colors.green : Colors.red[600],
-                        borderRadius: BorderRadius.circular(3),
+                        color: isAligned ? Colors.green[700] : Colors.red[600],
+                        borderRadius: BorderRadius.circular(4),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 6,
+                            offset: Offset(0, 3),
                           ),
                         ],
                       ),
@@ -512,12 +591,14 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
 
           SizedBox(height: 30),
 
-          // Durum kartı
           _buildStatusCard(qiblaAngle, qiblaDisplayAngle, isAligned),
 
           SizedBox(height: 20),
 
-          // Kullanım talimatları
+          _buildLocationCard(),
+
+          SizedBox(height: 20),
+
           _buildInstructionsCard(),
 
           SizedBox(height: 30),
@@ -530,13 +611,12 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
     return Stack(
       alignment: Alignment.center,
       children: [
-        // Ana yön işaretleri (K, D, G, B)
         for (int i = 0; i < 4; i++)
           Transform.rotate(
             angle: i * pi / 2,
             child: Container(
-              width: 320,
-              height: 320,
+              width: 330,
+              height: 330,
               child: Align(
                 alignment: Alignment.topCenter,
                 child: Column(
@@ -549,7 +629,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                         child: Text(
                           ['K', 'D', 'G', 'B'][i],
                           style: TextStyle(
-                            fontSize: 20,
+                            fontSize: 22,
                             fontWeight: FontWeight.bold,
                             color: i == 0 ? Colors.red[600] : Colors.grey[700],
                           ),
@@ -558,8 +638,8 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                     ),
                     Container(
                       width: 4,
-                      height: 25,
-                      margin: EdgeInsets.only(top: 5),
+                      height: 28,
+                      margin: EdgeInsets.only(top: 6),
                       decoration: BoxDecoration(
                         color: i == 0 ? Colors.red[600] : Colors.grey[600],
                         borderRadius: BorderRadius.circular(2),
@@ -571,20 +651,19 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
             ),
           ),
         
-        // Ara işaretler (her 30 derece)
         for (int i = 0; i < 12; i++)
-          if (i % 3 != 0) // Ana yönleri atla
+          if (i % 3 != 0)
             Transform.rotate(
               angle: i * pi / 6,
               child: Container(
-                width: 320,
-                height: 320,
+                width: 330,
+                height: 330,
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: Container(
-                    margin: EdgeInsets.only(top: 20),
+                    margin: EdgeInsets.only(top: 22),
                     width: 2,
-                    height: 15,
+                    height: 18,
                     decoration: BoxDecoration(
                       color: Colors.grey[400],
                       borderRadius: BorderRadius.circular(1),
@@ -600,20 +679,20 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   Widget _buildStatusCard(double qiblaAngle, double displayAngle, bool isAligned) {
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 20),
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: EdgeInsets.all(20),
         child: Column(
           children: [
-            // Hizalama durumu
             Container(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: isAligned ? Colors.green[50] : Colors.orange[50],
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isAligned ? Colors.green[200]! : Colors.orange[200]!,
+                  width: 2,
                 ),
               ),
               child: Row(
@@ -622,12 +701,12 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                   Icon(
                     isAligned ? Icons.check_circle_rounded : Icons.adjust_rounded,
                     color: isAligned ? Colors.green[700] : Colors.orange[700],
-                    size: 28,
+                    size: 32,
                   ),
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      isAligned ? 'KIBLE YÖNÜNDE!' : 'KIBLE YÖNÜNE ÇEVİRİN',
+                      isAligned ? 'KIBLE YÖNÜNDE HIZALI!' : 'KIBLE YÖNÜNE ÇEVİRİN',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 18,
@@ -642,15 +721,72 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
             
             SizedBox(height: 20),
             
-            // Açı bilgileri
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildAngleInfo('Cihaz Yönü', '${_deviceHeading.toStringAsFixed(1)}°', Colors.blue),
-                _buildAngleInfo('Kıble Açısı', '${qiblaAngle.toStringAsFixed(1)}°', Colors.teal),
-                _buildAngleInfo('Fark', '${displayAngle.toStringAsFixed(1)}°', 
+                _buildAngleInfo('Cihaz', '${_deviceHeading.toStringAsFixed(0)}°', Colors.blue),
+                _buildAngleInfo('Kıble', '${qiblaAngle.toStringAsFixed(0)}°', Colors.teal),
+                _buildAngleInfo('Fark', '${displayAngle.toStringAsFixed(0)}°', 
                     isAligned ? Colors.green : Colors.orange),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLocationCard() {
+    if (_userPosition == null) return Container();
+    
+    return Card(
+      margin: EdgeInsets.symmetric(horizontal: 20),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(Icons.location_on, color: Colors.teal[700], size: 24),
+                SizedBox(width: 8),
+                Text(
+                  'Konum Bilgisi',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal[700],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Enlem:', style: TextStyle(color: Colors.grey[600])),
+                    Text('${_userPosition!.latitude.toStringAsFixed(4)}°',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('Boylam:', style: TextStyle(color: Colors.grey[600])),
+                    Text('${_userPosition!.longitude.toStringAsFixed(4)}°',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ],
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Doğruluk: ±${_userPosition!.accuracy.toStringAsFixed(0)}m',
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
           ],
         ),
@@ -682,7 +818,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 20),
       elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
@@ -692,7 +828,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                 Icon(Icons.info_outline, color: Colors.teal[700], size: 24),
                 SizedBox(width: 8),
                 Text(
-                  'Kullanım Talimatları',
+                  'Kullanım Kılavuzu',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -703,11 +839,14 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
             ),
             SizedBox(height: 12),
             Text(
-              '• Telefonu yatay düzlemde tutun\n'
-              '• Yeşil KIBLE oku her zaman Kabe\'yi gösterir\n'
-              '• Telefonu çevirin ve yeşil oku üstteki çizgi ile hizalayın\n'
+              '• Telefonu yatay düzlemde (masa gibi) tutun\n'
+              '• Yeşil KIBLE oku her zaman Kabe\'nin gerçek yönünü gösterir\n'
+              '• Kendinizi (telefonu değil) çevirin\n'
+              '• Yeşil oku üstteki kırmızı çizgi ile hizalayın\n'
               '• Hizalandığında çerçeve yeşil olur ve titreşim hissedersiniz\n'
-              '• Metal objelerden ve manyetik alanlardan uzak durun',
+              '• Metal eşyalardan ve elektronik cihazlardan uzak durun\n'
+              '• Kalibrasyon için cihazı 8 şeklinde hareket ettirin\n'
+              '• Sensör hatası alırsanız, cihazı açık alanda kalibre edin',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[700],
@@ -723,7 +862,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   @override
   void dispose() {
     _magnetometerSubscription?.cancel();
-    _simulationTimer?.cancel();
+    _accelerometerSubscription?.cancel();
     _pulseController.dispose();
     super.dispose();
   }

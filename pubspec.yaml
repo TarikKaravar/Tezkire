@@ -16,10 +16,10 @@ dependencies:
   shared_preferences: ^2.5.3
   lottie: ^2.6.0
   geolocator: ^14.0.1
-  http: ^1.1.0 
+  http: ^1.1.0
   google_fonts: ^6.2.1
-  flutter_compass: ^0.8.0  # Yeni eklenen paket
-  sensors_plus: ^4.0.2     # Daha stabil magnetometre paketi
+  flutter_compass: ^0.8.0
+  sensors_plus: ^4.0.2
 
 dev_dependencies:
   flutter_test:
@@ -34,4 +34,3 @@ flutter:
     - assets/languages/
     - assets/motions/
     - assets/motions/loading.json
-    - assets/images/compass.png
