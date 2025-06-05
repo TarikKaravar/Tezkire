@@ -18,7 +18,8 @@ dependencies:
   geolocator: ^14.0.1
   http: ^1.1.0 
   google_fonts: ^6.2.1
-  flutter_compass: ^0.7.0
+  flutter_compass: ^0.8.0  # Yeni eklenen paket
+  sensors_plus: ^4.0.2     # Daha stabil magnetometre paketi
 
 dev_dependencies:
   flutter_test:
