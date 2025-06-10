@@ -7,6 +7,7 @@ import 'package:flutter_app/screens/notification_screen.dart';
 import 'package:flutter_app/screens/setting_screen.dart';
 import 'package:flutter_app/services/prayer_time_service.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -53,15 +54,39 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     'Muş', 'Nevşehir', 'Niğde', 'Ordu', 'Osmaniye', 'Rize', 'Sakarya', 'Samsun', 'Şanlıurfa',
     'Siirt', 'Sinop', 'Şırnak', 'Sivas', 'Tekirdağ', 'Tokat', 'Trabzon', 'Tunceli', 'Uşak',
     'Van', 'Yalova', 'Yozgat', 'Zonguldak'
-  ]..sort();
+  ];
+
+  // Türkçe sıralama fonksiyonu
+  String _turkishSort(String text) {
+    return text
+        .replaceAll('Ç', 'C1')
+        .replaceAll('Ğ', 'G1')
+        .replaceAll('İ', 'I1')  
+        .replaceAll('Ö', 'O1')
+        .replaceAll('Ş', 'S1')
+        .replaceAll('Ü', 'U1')
+        .replaceAll('ç', 'c1')
+        .replaceAll('ğ', 'g1')
+        .replaceAll('ı', 'i0')
+        .replaceAll('ö', 'o1')
+        .replaceAll('ş', 's1')
+        .replaceAll('ü', 'u1');
+  }
+
+  // Sıralanmış şehirler listesi
+  List<String> get sortedCitiesTR {
+    final cities = List<String>.from(citiesTR);
+    cities.sort((a, b) => _turkishSort(a).compareTo(_turkishSort(b)));
+    return cities;
+  }
 
   String _selectedCity = 'İstanbul';
 
   @override
   void initState() {
     super.initState();
+    _loadSelectedCity(); // Load the saved city
     _setCurrentDate();
-    _fetchPrayerTimes();
     
     // Animasyon kontrolleri başlatma
     _citySelectionController = AnimationController(
@@ -99,6 +124,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _citySelectionController.dispose();
     _slideController.dispose();
     super.dispose();
+  }
+
+  // Load the selected city from SharedPreferences
+  Future<void> _loadSelectedCity() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedCity = prefs.getString('selectedCity');
+    if (savedCity != null && sortedCitiesTR.contains(savedCity)) {
+      setState(() {
+        _selectedCity = savedCity;
+      });
+    }
+    // Fetch prayer times after loading the city
+    _fetchPrayerTimes();
+  }
+
+  // Save the selected city to SharedPreferences
+  Future<void> _saveSelectedCity(String city) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selectedCity', city);
   }
 
   void _setCurrentDate() {
@@ -309,78 +353,124 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 ),
                 
-                // Genişleyen şehir listesi
+                // Genişleyen şehir listesi - DÜZELTİLMİŞ BÖLÜM
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
-                  height: _isCitySelectionExpanded ? 300 : 0,
-                  child: FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: colorScheme.outline.withOpacity(0.2),
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemCount: citiesTR.length,
-                          itemBuilder: (context, index) {
-                            final city = citiesTR[index];
-                            final isSelected = city == _selectedCity;
-                            
-                            return AnimatedContainer(
-                              duration: Duration(milliseconds: 100 + (index * 20)),
-                              curve: Curves.easeOutBack,
-                              child: ListTile(
-                                leading: Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: isSelected 
-                                        ? colorScheme.primary 
-                                        : Colors.transparent,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                title: Text(
-                                  city,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 16,
-                                    fontWeight: isSelected 
-                                        ? FontWeight.w600 
-                                        : FontWeight.w400,
-                                    color: isSelected 
-                                        ? colorScheme.primary 
-                                        : colorScheme.onSurface,
-                                  ),
-                                ),
-                                trailing: isSelected
-                                    ? Icon(
-                                        Icons.check_circle,
-                                        color: colorScheme.primary,
-                                        size: 20,
-                                      )
-                                    : null,
-                                onTap: () {
-                                  if (city != _selectedCity) {
-                                    setState(() => _selectedCity = city);
-                                    _toggleCitySelection();
-                                    _fetchPrayerTimes();
-                                  }
-                                },
+                  height: _isCitySelectionExpanded ? MediaQuery.of(context).size.height * 0.4 : 0,
+                  child: _isCitySelectionExpanded 
+                      ? FadeTransition(
+                          opacity: _fadeAnimation,
+                          child: Container(
+                            margin: const EdgeInsets.only(top: 8, left: 12, right: 12, bottom: 12),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: colorScheme.outline.withOpacity(0.2),
                               ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Column(
+                                children: [
+                                  // Arama çubuğu (opsiyonel)
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.surface,
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: colorScheme.outline.withOpacity(0.1),
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Şehir Seçin',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: colorScheme.onSurface.withOpacity(0.7),
+                                      ),
+                                    ),
+                                  ),
+                                  // Şehir listesi
+                                  Expanded(
+                                    child: ListView.builder(
+                                      padding: const EdgeInsets.symmetric(vertical: 4),
+                                      itemCount: sortedCitiesTR.length,
+                                      itemBuilder: (context, index) {
+                                        final city = sortedCitiesTR[index];
+                                        final isSelected = city == _selectedCity;
+                                        
+                                        return Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            onTap: () {
+                                              if (city != _selectedCity) {
+                                                setState(() => _selectedCity = city);
+                                                _saveSelectedCity(city);
+                                                _toggleCitySelection();
+                                                _fetchPrayerTimes();
+                                              }
+                                            },
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 16, 
+                                                vertical: 12
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: isSelected 
+                                                    ? colorScheme.primary.withOpacity(0.1)
+                                                    : Colors.transparent,
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Container(
+                                                    width: 8,
+                                                    height: 8,
+                                                    decoration: BoxDecoration(
+                                                      color: isSelected 
+                                                          ? colorScheme.primary 
+                                                          : Colors.transparent,
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Text(
+                                                      city,
+                                                      style: GoogleFonts.poppins(
+                                                        fontSize: 15,
+                                                        fontWeight: isSelected 
+                                                            ? FontWeight.w600 
+                                                            : FontWeight.w400,
+                                                        color: isSelected 
+                                                            ? colorScheme.primary 
+                                                            : colorScheme.onSurface,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  if (isSelected)
+                                                    Icon(
+                                                      Icons.check_circle,
+                                                      color: colorScheme.primary,
+                                                      size: 18,
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),

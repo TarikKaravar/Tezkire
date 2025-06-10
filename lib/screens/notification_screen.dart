@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// AppColors sınıfınızı import edin
-// import 'app_colors.dart';
-
 class AppColors {
-  static const Color primary = Color(0xFF6366F1);
+  static const Color primary = Color(0xFF4CAF50); // Green tone matching home_screen
+  static const Color secondary = Color(0xFF81C784); // Lighter green for secondary elements
   
   static Color getPrayerColor(BuildContext context) {
-    return primary;
+    return Theme.of(context).colorScheme.primary;
   }
   
   static Color primaryLight(BuildContext context) {
-    return primary.withOpacity(0.1);
+    return Theme.of(context).colorScheme.primary.withOpacity(0.1);
   }
 }
 
@@ -126,7 +124,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.getPrayerColor(context).withOpacity(0.1),
+                      color: colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -136,7 +134,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                           style: GoogleFonts.poppins(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.getPrayerColor(context),
+                            color: colorScheme.primary,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -145,7 +143,8 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                           min: 5,
                           max: 60,
                           divisions: 11,
-                          activeColor: AppColors.getPrayerColor(context),
+                          activeColor: colorScheme.primary,
+                         inactiveColor: colorScheme.onSurface.withOpacity(0.3),
                           onChanged: (value) {
                             setDialogState(() {
                               tempMinutes = value.round();
@@ -188,15 +187,15 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                     Navigator.of(context).pop();
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.getPrayerColor(context),
-                    foregroundColor: Colors.white,
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   child: Text(
                     'Kaydet',
-                    style: GoogleFonts.poppins(color: Colors.white),
+                    style: GoogleFonts.poppins(color: colorScheme.onPrimary),
                   ),
                 ),
               ],
@@ -209,7 +208,6 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
 
   Widget _buildMasterSwitch(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final prayerColor = AppColors.getPrayerColor(context);
     
     return Container(
       margin: const EdgeInsets.all(20),
@@ -217,7 +215,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: masterNotification 
-              ? [prayerColor.withOpacity(0.8), prayerColor.withOpacity(0.6)]
+              ? [colorScheme.primary.withOpacity(0.9), colorScheme.primary.withOpacity(0.7)]
               : [colorScheme.surface, colorScheme.surface],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -225,13 +223,13 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: masterNotification 
-              ? prayerColor.withOpacity(0.3)
+              ? colorScheme.primary.withOpacity(0.3)
               : colorScheme.outline.withOpacity(0.3),
         ),
         boxShadow: [
           BoxShadow(
             color: masterNotification 
-                ? prayerColor.withOpacity(0.2)
+                ? colorScheme.primary.withOpacity(0.2)
                 : colorScheme.shadow.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
@@ -244,13 +242,13 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: masterNotification 
-                  ? Colors.white.withOpacity(0.2)
-                  : prayerColor.withOpacity(0.1),
+                  ? colorScheme.onPrimary.withOpacity(0.2)
+                  : colorScheme.primary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               masterNotification ? Icons.notifications_active : Icons.notifications_off,
-              color: masterNotification ? Colors.white : prayerColor,
+              color: masterNotification ? colorScheme.onPrimary : colorScheme.primary,
               size: 28,
             ),
           ),
@@ -264,7 +262,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: masterNotification ? Colors.white : colorScheme.onSurface,
+                    color: masterNotification ? colorScheme.onPrimary : colorScheme.onSurface,
                   ),
                 ),
                 Text(
@@ -272,7 +270,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     color: masterNotification 
-                        ? Colors.white.withOpacity(0.8)
+                        ? colorScheme.onPrimary.withOpacity(0.8)
                         : colorScheme.onSurface.withOpacity(0.6),
                   ),
                 ),
@@ -286,8 +284,9 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                 masterNotification = value;
               });
             },
-            activeColor: Colors.white,
-            activeTrackColor: Colors.white.withOpacity(0.3),
+            activeColor: colorScheme.onPrimary,
+            activeTrackColor: colorScheme.onPrimary.withOpacity(0.3),
+            inactiveTrackColor: colorScheme.onSurface.withOpacity(0.3),
           ),
         ],
       ),
@@ -298,7 +297,6 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
     final colorScheme = Theme.of(context).colorScheme;
     final isEnabled = prayerNotifications[prayerKey] ?? false;
     final minutes = notificationMinutes[prayerKey] ?? 30;
-    final prayerColor = AppColors.getPrayerColor(context); // Tüm vakitler için aynı renk
     
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -316,8 +314,8 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             gradient: isEnabled 
                 ? LinearGradient(
                     colors: [
-                      prayerColor.withOpacity(0.1),
-                      prayerColor.withOpacity(0.05),
+                      colorScheme.primary.withOpacity(0.1),
+                      colorScheme.primary.withOpacity(0.05),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -332,13 +330,13 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: isEnabled 
-                          ? prayerColor.withOpacity(0.2)
+                          ? colorScheme.primary.withOpacity(0.2)
                           : colorScheme.onSurface.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
                       prayerIcons[prayerKey],
-                      color: isEnabled ? prayerColor : colorScheme.onSurface.withOpacity(0.5),
+                      color: isEnabled ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
                       size: 24,
                     ),
                   ),
@@ -360,7 +358,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             color: isEnabled 
-                                ? prayerColor 
+                                ? colorScheme.primary 
                                 : colorScheme.onSurface.withOpacity(0.5),
                             fontWeight: isEnabled ? FontWeight.w500 : FontWeight.w400,
                           ),
@@ -375,8 +373,9 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                         prayerNotifications[prayerKey] = value;
                       });
                     } : null,
-                    activeColor: prayerColor,
-                    activeTrackColor: prayerColor.withOpacity(0.3),
+                    activeColor: colorScheme.primary,
+                    activeTrackColor: colorScheme.primary.withOpacity(0.3),
+                    inactiveTrackColor: colorScheme.onSurface.withOpacity(0.3),
                   ),
                 ],
               ),
@@ -389,10 +388,10 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: prayerColor.withOpacity(0.1),
+                      color: colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: prayerColor.withOpacity(0.3),
+                        color: colorScheme.primary.withOpacity(0.3),
                       ),
                     ),
                     child: Row(
@@ -400,7 +399,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                       children: [
                         Icon(
                           Icons.schedule,
-                          color: prayerColor,
+                          color: colorScheme.primary,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
@@ -409,7 +408,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: prayerColor,
+                            color: colorScheme.primary,
                           ),
                         ),
                       ],
@@ -426,7 +425,6 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
 
   Widget _buildSoundSettings(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final prayerColor = AppColors.getPrayerColor(context);
     
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -454,7 +452,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             children: [
               Icon(
                 Icons.volume_up,
-                color: soundEnabled ? prayerColor : colorScheme.onSurface.withOpacity(0.5),
+                color: soundEnabled ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -473,7 +471,9 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                     soundEnabled = value;
                   });
                 } : null,
-                activeColor: prayerColor,
+                activeColor: colorScheme.primary,
+                activeTrackColor: colorScheme.primary.withOpacity(0.3),
+                inactiveTrackColor: colorScheme.onSurface.withOpacity(0.3),
               ),
             ],
           ),
@@ -482,7 +482,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             children: [
               Icon(
                 Icons.vibration,
-                color: vibrationEnabled ? prayerColor : colorScheme.onSurface.withOpacity(0.5),
+                color: vibrationEnabled ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -501,7 +501,9 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                     vibrationEnabled = value;
                   });
                 } : null,
-                activeColor: prayerColor,
+                activeColor: colorScheme.primary,
+                activeTrackColor: colorScheme.primary.withOpacity(0.3),
+                inactiveTrackColor: colorScheme.onSurface.withOpacity(0.3),
               ),
             ],
           ),
@@ -513,7 +515,6 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final prayerColor = AppColors.getPrayerColor(context);
     
     return Scaffold(
       backgroundColor: colorScheme.background,
@@ -528,7 +529,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                 padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [prayerColor, prayerColor.withOpacity(0.8)],
+                    colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.8)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -543,7 +544,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   style: GoogleFonts.poppins(
                     fontSize: 24,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: colorScheme.onPrimary,
                   ),
                 ),
               ),
