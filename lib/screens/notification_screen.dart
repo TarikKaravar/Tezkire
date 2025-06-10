@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF4CAF50); // Green tone matching home_screen
@@ -65,6 +66,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
   @override
   void initState() {
     super.initState();
+    _loadSettings(); // Load settings when the screen initializes
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -85,6 +87,45 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
   void dispose() {
     _slideController.dispose();
     super.dispose();
+  }
+
+  // Load settings from SharedPreferences
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      masterNotification = prefs.getBool('masterNotification') ?? true;
+      soundEnabled = prefs.getBool('soundEnabled') ?? true;
+      vibrationEnabled = prefs.getBool('vibrationEnabled') ?? true;
+      
+      prayerNotifications = {
+        'Fajr': prefs.getBool('prayer_Fajr') ?? true,
+        'Dhuhr': prefs.getBool('prayer_Dhuhr') ?? true,
+        'Asr': prefs.getBool('prayer_Asr') ?? false,
+        'Maghrib': prefs.getBool('prayer_Maghrib') ?? true,
+        'Isha': prefs.getBool('prayer_Isha') ?? true,
+      };
+      
+      notificationMinutes = {
+        'Fajr': prefs.getInt('minutes_Fajr') ?? 30,
+        'Dhuhr': prefs.getInt('minutes_Dhuhr') ?? 15,
+        'Asr': prefs.getInt('minutes_Asr') ?? 30,
+        'Maghrib': prefs.getInt('minutes_Maghrib') ?? 10,
+        'Isha': prefs.getInt('minutes_Isha') ?? 30,
+      };
+    });
+  }
+
+  // Save settings to SharedPreferences
+  Future<void> _saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('masterNotification', masterNotification);
+    await prefs.setBool('soundEnabled', soundEnabled);
+    await prefs.setBool('vibrationEnabled', vibrationEnabled);
+    
+    for (var key in prayerNotifications.keys) {
+      await prefs.setBool('prayer_$key', prayerNotifications[key]!);
+      await prefs.setInt('minutes_$key', notificationMinutes[key]!);
+    }
   }
 
   void _showTimePickerDialog(String prayerKey) {
@@ -144,7 +185,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                           max: 60,
                           divisions: 11,
                           activeColor: colorScheme.primary,
-                         inactiveColor: colorScheme.onSurface.withOpacity(0.3),
+                          inactiveColor: colorScheme.onSurface.withOpacity(0.3),
                           onChanged: (value) {
                             setDialogState(() {
                               tempMinutes = value.round();
@@ -183,6 +224,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   onPressed: () {
                     setState(() {
                       notificationMinutes[prayerKey] = tempMinutes;
+                      _saveSettings(); // Save settings when time is updated
                     });
                     Navigator.of(context).pop();
                   },
@@ -282,6 +324,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             onChanged: (value) {
               setState(() {
                 masterNotification = value;
+                _saveSettings(); // Save settings when master switch is toggled
               });
             },
             activeColor: colorScheme.onPrimary,
@@ -371,6 +414,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                     onChanged: masterNotification ? (value) {
                       setState(() {
                         prayerNotifications[prayerKey] = value;
+                        _saveSettings(); // Save settings when prayer switch is toggled
                       });
                     } : null,
                     activeColor: colorScheme.primary,
@@ -469,6 +513,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                 onChanged: masterNotification ? (value) {
                   setState(() {
                     soundEnabled = value;
+                    _saveSettings(); // Save settings when sound switch is toggled
                   });
                 } : null,
                 activeColor: colorScheme.primary,
@@ -499,6 +544,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                 onChanged: masterNotification ? (value) {
                   setState(() {
                     vibrationEnabled = value;
+                    _saveSettings(); // Save settings when vibration switch is toggled
                   });
                 } : null,
                 activeColor: colorScheme.primary,
