@@ -1,86 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_app/core/theme_manager.dart'; // ThemeManager'ı import edin
 
-enum ThemeMode { system, light, dark }
-
-class ThemesScreen extends StatefulWidget {
+class ThemesScreen extends StatelessWidget {
   const ThemesScreen({super.key});
 
-  @override
-  State<ThemesScreen> createState() => _ThemesScreenState();
-}
+  void _changeTheme(BuildContext context, ThemeMode theme) {
+    // Tema değiştir - bu otomatik olarak tüm uygulamayı günceller
+    ThemeManager().changeTheme(theme);
 
-class _ThemesScreenState extends State<ThemesScreen> {
-  ThemeMode _selectedTheme = ThemeMode.system;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadThemePreference();
-  }
-
-  Future<void> _loadThemePreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    final themeIndex = prefs.getInt('theme_mode') ?? 0;
-    setState(() {
-      _selectedTheme = ThemeMode.values[themeIndex];
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _saveThemePreference(ThemeMode theme) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('theme_mode', theme.index);
-  }
-
-  void _changeTheme(ThemeMode theme) {
-    setState(() {
-      _selectedTheme = theme;
-    });
-    _saveThemePreference(theme);
-    
-    // Snackbar ile onay mesajı
+    // Kullanıcıya geri bildirim ver
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Tema değiştirildi: ${_getThemeName(theme)}'),
+        content: Text('Tema değiştirildi: ${ThemeManager().getThemeName(theme)}'),
         duration: const Duration(seconds: 2),
         backgroundColor: Theme.of(context).colorScheme.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
       ),
     );
-  }
-
-  String _getThemeName(ThemeMode theme) {
-    switch (theme) {
-      case ThemeMode.system:
-        return 'Sistem Ayarı';
-      case ThemeMode.light:
-        return 'Açık Tema';
-      case ThemeMode.dark:
-        return 'Koyu Tema';
-    }
-  }
-
-  String _getThemeDescription(ThemeMode theme) {
-    switch (theme) {
-      case ThemeMode.system:
-        return 'Cihazın sistem ayarını takip eder';
-      case ThemeMode.light:
-        return 'Her zaman açık tema kullanır';
-      case ThemeMode.dark:
-        return 'Her zaman koyu tema kullanır';
-    }
-  }
-
-  IconData _getThemeIcon(ThemeMode theme) {
-    switch (theme) {
-      case ThemeMode.system:
-        return Icons.settings_system_daydream;
-      case ThemeMode.light:
-        return Icons.light_mode;
-      case ThemeMode.dark:
-        return Icons.dark_mode;
-    }
   }
 
   @override
@@ -90,51 +29,49 @@ class _ThemesScreenState extends State<ThemesScreen> {
         title: const Text('Tema Ayarları'),
         elevation: 0,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Başlık ve Açıklama
-                  Text(
-                    'Tema Seçimi',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Uygulamanın görünümünü kişiselleştirin',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Tema Seçenekleri
-                  ...ThemeMode.values.map((theme) => _buildThemeOption(theme)),
-
-                  const SizedBox(height: 32),
-
-                  // Tema Önizleme Kartı
-                  _buildPreviewCard(),
-
-                  const SizedBox(height: 24),
-
-                  // Renk Paleti Gösterimi
-                  _buildColorPalette(),
-                ],
-              ),
+      body: ValueListenableBuilder<ThemeMode>(
+        // ThemeManager'ı dinle - tema değiştiğinde UI otomatik güncellenir
+        valueListenable: ThemeManager(),
+        builder: (context, currentTheme, child) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Tema Seçimi',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Uygulamanın görünümünü kişiselleştirin',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.7),
+                      ),
+                ),
+                const SizedBox(height: 24),
+                ...ThemeMode.values.map((theme) => _buildThemeOption(context, theme, currentTheme)),
+                const SizedBox(height: 32),
+                _buildPreviewCard(context),
+                const SizedBox(height: 24),
+                _buildColorPalette(context),
+              ],
             ),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildThemeOption(ThemeMode theme) {
-    final isSelected = _selectedTheme == theme;
-    
+  Widget _buildThemeOption(BuildContext context, ThemeMode theme, ThemeMode currentTheme) {
+    final isSelected = currentTheme == theme;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: Card(
@@ -149,7 +86,7 @@ class _ThemesScreenState extends State<ThemesScreen> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              _getThemeIcon(theme),
+              ThemeManager().getThemeIcon(theme),
               color: isSelected
                   ? Colors.white
                   : Theme.of(context).colorScheme.primary,
@@ -157,16 +94,16 @@ class _ThemesScreenState extends State<ThemesScreen> {
             ),
           ),
           title: Text(
-            _getThemeName(theme),
+            ThemeManager().getThemeName(theme),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : null,
-            ),
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
           ),
           subtitle: Text(
-            _getThemeDescription(theme),
+            ThemeManager().getThemeDescription(theme),
             style: Theme.of(context).textTheme.bodySmall,
           ),
           trailing: isSelected
@@ -176,15 +113,16 @@ class _ThemesScreenState extends State<ThemesScreen> {
                 )
               : Icon(
                   Icons.radio_button_unchecked,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                  color:
+                      Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
                 ),
-          onTap: () => _changeTheme(theme),
+          onTap: () => _changeTheme(context, theme),
         ),
       ),
     );
   }
 
-  Widget _buildPreviewCard() {
+  Widget _buildPreviewCard(BuildContext context) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -201,14 +139,12 @@ class _ThemesScreenState extends State<ThemesScreen> {
                 Text(
                   'Tema Önizlemesi',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            
-            // Örnek UI Elementleri
             ElevatedButton(
               onPressed: () {},
               child: const Text('Örnek Buton'),
@@ -231,7 +167,7 @@ class _ThemesScreenState extends State<ThemesScreen> {
     );
   }
 
-  Widget _buildColorPalette() {
+  Widget _buildColorPalette(BuildContext context) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -248,22 +184,24 @@ class _ThemesScreenState extends State<ThemesScreen> {
                 Text(
                   'Renk Paleti',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            
-            // Renk Örnekleri
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                _buildColorChip('Ana Renk', Theme.of(context).colorScheme.primary),
-                _buildColorChip('İkincil', Theme.of(context).colorScheme.secondary),
-                _buildColorChip('Yüzey', Theme.of(context).colorScheme.surface),
-                _buildColorChip('Arka Plan', Theme.of(context).colorScheme.background),
+                _buildColorChip(
+                    'Ana Renk', Theme.of(context).colorScheme.primary),
+                _buildColorChip(
+                    'İkincil', Theme.of(context).colorScheme.secondary),
+                _buildColorChip(
+                    'Yüzey', Theme.of(context).colorScheme.surface),
+                _buildColorChip(
+                    'Arka Plan', Theme.of(context).colorScheme.background),
                 _buildColorChip('Hata', Theme.of(context).colorScheme.error),
               ],
             ),
