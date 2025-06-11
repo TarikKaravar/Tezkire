@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/services.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class CompassScreen extends StatefulWidget {
   @override
@@ -25,11 +26,9 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   final double _kaabaLat = 21.4225;
   final double _kaabaLng = 39.8262;
 
-  // Sensor verileri için
   List<double> _magnetometerValues = [0, 0, 0];
   List<double> _accelerometerValues = [0, 0, 0];
   
-  // Filtreleme için
   List<double> _headingHistory = [];
   static const int _historySize = 10;
   static const double _smoothingFactor = 0.8;
@@ -107,7 +106,6 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
 
   void _startSensorListening() {
     try {
-      // Manyetometre dinleme
       _magnetometerSubscription = magnetometerEvents.listen(
         (MagnetometerEvent event) {
           _magnetometerValues = [event.x, event.y, event.z];
@@ -121,7 +119,6 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
         },
       );
 
-      // Akselerometre dinleme
       _accelerometerSubscription = accelerometerEvents.listen(
         (AccelerometerEvent event) {
           _accelerometerValues = [event.x, event.y, event.z];
@@ -269,12 +266,19 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: colorScheme.background,
       appBar: AppBar(
-        title: Text("Kıble Pusulası", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.teal[700],
-        foregroundColor: Colors.white,
+        title: Text(
+          "Kıble Pusulası",
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onPrimary,
+          ),
+        ),
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
         elevation: 0,
         actions: [
           IconButton(
@@ -287,7 +291,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
           ),
         ],
       ),
-      body: _buildBody(),
+      body: _buildBody(context),
     );
   }
 
@@ -298,7 +302,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
       SnackBar(
         content: Text('Pusula kalibre edildi'),
         duration: Duration(seconds: 2),
-        backgroundColor: Colors.teal[600],
+        backgroundColor: Theme.of(context).colorScheme.primary,
       ),
     );
   }
@@ -316,20 +320,24 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
     _startSensorListening();
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     if (_isLoading) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(
-              color: Colors.teal[700],
+              color: colorScheme.primary,
               strokeWidth: 3,
             ),
             SizedBox(height: 20),
             Text(
               'Konum ve sensörler hazırlanıyor...',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: colorScheme.onBackground.withOpacity(0.7),
+              ),
             ),
           ],
         ),
@@ -343,18 +351,24 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 80, color: Colors.red[400]),
+              Icon(Icons.error_outline, size: 80, color: colorScheme.error),
               SizedBox(height: 20),
               Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  color: colorScheme.onBackground,
+                ),
               ),
               SizedBox(height: 20),
               Text(
                 'Cihazı 8 şeklinde hareket ettirerek kalibre edin veya GPS\'i kontrol edin.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: colorScheme.onBackground.withOpacity(0.7),
+                ),
               ),
               SizedBox(height: 20),
               ElevatedButton.icon(
@@ -362,8 +376,8 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                 icon: Icon(Icons.refresh),
                 label: Text('Tekrar Dene'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal[700],
-                  foregroundColor: Colors.white,
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
                 ),
               ),
             ],
@@ -377,21 +391,25 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: Colors.teal[700]),
+            CircularProgressIndicator(color: colorScheme.primary),
             SizedBox(height: 20),
             Text(
               'Konum verisi bekleniyor...',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: colorScheme.onBackground.withOpacity(0.7),
+              ),
             ),
           ],
         ),
       );
     }
 
-    return _buildCompass();
+    return _buildCompass(context);
   }
 
-  Widget _buildCompass() {
+  Widget _buildCompass(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final qiblaAngle = _calculateQiblaAngle(_userPosition!.latitude, _userPosition!.longitude);
     final qiblaDisplayAngle = _getQiblaDisplayAngle(qiblaAngle);
     final isAligned = _isQiblaAligned();
@@ -407,10 +425,23 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
             margin: EdgeInsets.all(20),
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: _compassAvailable ? Colors.green[100] : Colors.orange[100],
+              gradient: LinearGradient(
+                colors: [
+                  _compassAvailable
+                      ? colorScheme.secondary.withOpacity(0.1)
+                      : colorScheme.error.withOpacity(0.1),
+                  _compassAvailable
+                      ? colorScheme.secondary.withOpacity(0.05)
+                      : colorScheme.error.withOpacity(0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.circular(25),
               border: Border.all(
-                color: _compassAvailable ? Colors.green[300]! : Colors.orange[300]!,
+                color: _compassAvailable
+                    ? colorScheme.secondary.withOpacity(0.3)
+                    : colorScheme.error.withOpacity(0.3),
                 width: 2,
               ),
             ),
@@ -419,15 +450,15 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
               children: [
                 Icon(
                   _compassAvailable ? Icons.sensors : Icons.warning_amber_rounded,
-                  color: _compassAvailable ? Colors.green[700] : Colors.orange[700],
+                  color: _compassAvailable ? colorScheme.secondary : colorScheme.error,
                   size: 20,
                 ),
                 SizedBox(width: 8),
                 Text(
                   _compassAvailable ? 'Sensör Aktif' : 'Sensör Hatası',
-                  style: TextStyle(
-                    color: _compassAvailable ? Colors.green[700] : Colors.orange[700],
-                    fontWeight: FontWeight.bold,
+                  style: GoogleFonts.poppins(
+                    color: _compassAvailable ? colorScheme.secondary : colorScheme.error,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -448,16 +479,18 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isAligned ? Colors.green : Colors.grey[300]!,
+                      color: isAligned ? colorScheme.secondary : colorScheme.outline,
                       width: isAligned ? 6 : 3,
                     ),
-                    boxShadow: isAligned ? [
-                      BoxShadow(
-                        color: Colors.green.withOpacity(0.4),
-                        blurRadius: 20,
-                        spreadRadius: 3,
-                      ),
-                    ] : [],
+                    boxShadow: isAligned
+                        ? [
+                            BoxShadow(
+                              color: colorScheme.secondary.withOpacity(0.4),
+                              blurRadius: 20,
+                              spreadRadius: 3,
+                            ),
+                          ]
+                        : [],
                   ),
                 ),
 
@@ -466,11 +499,11 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                   height: 330,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white,
-                    border: Border.all(color: Colors.teal[700]!, width: 3),
+                    color: colorScheme.surface,
+                    border: Border.all(color: colorScheme.primary, width: 3),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: colorScheme.onSurface.withOpacity(0.15),
                         blurRadius: 15,
                         offset: Offset(0, 5),
                       ),
@@ -479,14 +512,14 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      _buildCompassMarks(),
+                      _buildCompassMarks(context),
                       Container(
                         width: 18,
                         height: 18,
                         decoration: BoxDecoration(
-                          color: Colors.teal[700],
+                          color: colorScheme.primary,
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 3),
+                          border: Border.all(color: colorScheme.surface, width: 3),
                         ),
                       ),
                     ],
@@ -512,11 +545,11 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                                   margin: EdgeInsets.only(top: 8),
                                   padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                   decoration: BoxDecoration(
-                                    color: isAligned ? Colors.green[600] : Colors.teal[600],
+                                    color: isAligned ? colorScheme.secondary : colorScheme.primary,
                                     borderRadius: BorderRadius.circular(20),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.3),
+                                        color: colorScheme.onSurface.withOpacity(0.3),
                                         blurRadius: 8,
                                         offset: Offset(0, 3),
                                       ),
@@ -524,10 +557,10 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                                   ),
                                   child: Text(
                                     'KIBLE',
-                                    style: TextStyle(
-                                      color: Colors.white,
+                                    style: GoogleFonts.poppins(
+                                      color: colorScheme.onPrimary,
                                       fontSize: 13,
-                                      fontWeight: FontWeight.bold,
+                                      fontWeight: FontWeight.w600,
                                       letterSpacing: 1.2,
                                     ),
                                   ),
@@ -537,11 +570,11 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                                   width: 52,
                                   height: 52,
                                   decoration: BoxDecoration(
-                                    color: isAligned ? Colors.green[600] : Colors.teal[600],
+                                    color: isAligned ? colorScheme.secondary : colorScheme.primary,
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.4),
+                                        color: colorScheme.onSurface.withOpacity(0.4),
                                         blurRadius: 10,
                                         offset: Offset(0, 5),
                                       ),
@@ -549,7 +582,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                                   ),
                                   child: Icon(
                                     Icons.navigation_rounded,
-                                    color: Colors.white,
+                                    color: colorScheme.onPrimary,
                                     size: 30,
                                   ),
                                 ),
@@ -572,11 +605,11 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                       height: 35,
                       margin: EdgeInsets.only(top: 2),
                       decoration: BoxDecoration(
-                        color: isAligned ? Colors.green[700] : Colors.red[600],
+                        color: isAligned ? colorScheme.secondary : colorScheme.error,
                         borderRadius: BorderRadius.circular(4),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: colorScheme.onSurface.withOpacity(0.3),
                             blurRadius: 6,
                             offset: Offset(0, 3),
                           ),
@@ -591,15 +624,15 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
 
           SizedBox(height: 30),
 
-          _buildStatusCard(qiblaAngle, qiblaDisplayAngle, isAligned),
+          _buildStatusCard(context, qiblaAngle, qiblaDisplayAngle, isAligned),
 
           SizedBox(height: 20),
 
-          _buildLocationCard(),
+          _buildLocationCard(context),
 
           SizedBox(height: 20),
 
-          _buildInstructionsCard(),
+          _buildInstructionsCard(context),
 
           SizedBox(height: 30),
         ],
@@ -607,7 +640,8 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
     );
   }
 
-  Widget _buildCompassMarks() {
+  Widget _buildCompassMarks(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -628,10 +662,10 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                         angle: -i * pi / 2,
                         child: Text(
                           ['K', 'D', 'G', 'B'][i],
-                          style: TextStyle(
+                          style: GoogleFonts.poppins(
                             fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: i == 0 ? Colors.red[600] : Colors.grey[700],
+                            fontWeight: FontWeight.w600,
+                            color: i == 0 ? colorScheme.error : colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -641,7 +675,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                       height: 28,
                       margin: EdgeInsets.only(top: 6),
                       decoration: BoxDecoration(
-                        color: i == 0 ? Colors.red[600] : Colors.grey[600],
+                        color: i == 0 ? colorScheme.error : colorScheme.onSurface.withOpacity(0.7),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -665,7 +699,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                     width: 2,
                     height: 18,
                     decoration: BoxDecoration(
-                      color: Colors.grey[400],
+                      color: colorScheme.outline,
                       borderRadius: BorderRadius.circular(1),
                     ),
                   ),
@@ -676,7 +710,8 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
     );
   }
 
-  Widget _buildStatusCard(double qiblaAngle, double displayAngle, bool isAligned) {
+  Widget _buildStatusCard(BuildContext context, double qiblaAngle, double displayAngle, bool isAligned) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 20),
       elevation: 8,
@@ -688,10 +723,23 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
             Container(
               padding: EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: isAligned ? Colors.green[50] : Colors.orange[50],
+                gradient: LinearGradient(
+                  colors: [
+                    isAligned
+                        ? colorScheme.secondary.withOpacity(0.1)
+                        : colorScheme.error.withOpacity(0.1),
+                    isAligned
+                        ? colorScheme.secondary.withOpacity(0.05)
+                        : colorScheme.error.withOpacity(0.05),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isAligned ? Colors.green[200]! : Colors.orange[200]!,
+                  color: isAligned
+                      ? colorScheme.secondary.withOpacity(0.3)
+                      : colorScheme.error.withOpacity(0.3),
                   width: 2,
                 ),
               ),
@@ -700,7 +748,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                 children: [
                   Icon(
                     isAligned ? Icons.check_circle_rounded : Icons.adjust_rounded,
-                    color: isAligned ? Colors.green[700] : Colors.orange[700],
+                    color: isAligned ? colorScheme.secondary : colorScheme.error,
                     size: 32,
                   ),
                   SizedBox(width: 12),
@@ -708,10 +756,10 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                     child: Text(
                       isAligned ? 'KIBLE YÖNÜNDE HIZALI!' : 'KIBLE YÖNÜNE ÇEVİRİN',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: GoogleFonts.poppins(
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isAligned ? Colors.green[700] : Colors.orange[700],
+                        fontWeight: FontWeight.w600,
+                        color: isAligned ? colorScheme.secondary : colorScheme.error,
                       ),
                     ),
                   ),
@@ -724,10 +772,10 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildAngleInfo('Cihaz', '${_deviceHeading.toStringAsFixed(0)}°', Colors.blue),
-                _buildAngleInfo('Kıble', '${qiblaAngle.toStringAsFixed(0)}°', Colors.teal),
-                _buildAngleInfo('Fark', '${displayAngle.toStringAsFixed(0)}°', 
-                    isAligned ? Colors.green : Colors.orange),
+                _buildAngleInfo(context, 'Cihaz', '${_deviceHeading.toStringAsFixed(0)}°', colorScheme.primary),
+                _buildAngleInfo(context, 'Kıble', '${qiblaAngle.toStringAsFixed(0)}°', colorScheme.secondary),
+                _buildAngleInfo(context, 'Fark', '${displayAngle.toStringAsFixed(0)}°', 
+                    isAligned ? colorScheme.secondary : colorScheme.error),
               ],
             ),
           ],
@@ -736,7 +784,8 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
     );
   }
 
-  Widget _buildLocationCard() {
+  Widget _buildLocationCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     if (_userPosition == null) return Container();
     
     return Card(
@@ -749,14 +798,14 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
           children: [
             Row(
               children: [
-                Icon(Icons.location_on, color: Colors.teal[700], size: 24),
+                Icon(Icons.location_on, color: colorScheme.primary, size: 24),
                 SizedBox(width: 8),
                 Text(
                   'Konum Bilgisi',
-                  style: TextStyle(
+                  style: GoogleFonts.poppins(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.teal[700],
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.primary,
                   ),
                 ),
               ],
@@ -768,17 +817,17 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Enlem:', style: TextStyle(color: Colors.grey[600])),
+                    Text('Enlem:', style: GoogleFonts.poppins(color: colorScheme.onBackground.withOpacity(0.7))),
                     Text('${_userPosition!.latitude.toStringAsFixed(4)}°',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
                   ],
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('Boylam:', style: TextStyle(color: Colors.grey[600])),
+                    Text('Boylam:', style: GoogleFonts.poppins(color: colorScheme.onBackground.withOpacity(0.7))),
                     Text('${_userPosition!.longitude.toStringAsFixed(4)}°',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
                   ],
                 ),
               ],
@@ -786,7 +835,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
             SizedBox(height: 8),
             Text(
               'Doğruluk: ±${_userPosition!.accuracy.toStringAsFixed(0)}m',
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              style: GoogleFonts.poppins(color: colorScheme.onBackground.withOpacity(0.7), fontSize: 12),
             ),
           ],
         ),
@@ -794,19 +843,22 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
     );
   }
 
-  Widget _buildAngleInfo(String label, String value, Color color) {
+  Widget _buildAngleInfo(BuildContext context, String label, String value, Color color) {
     return Column(
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+          ),
         ),
         SizedBox(height: 4),
         Text(
           value,
-          style: TextStyle(
+          style: GoogleFonts.poppins(
             fontSize: 18,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w600,
             color: color,
           ),
         ),
@@ -814,7 +866,8 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
     );
   }
 
-  Widget _buildInstructionsCard() {
+  Widget _buildInstructionsCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 20),
       elevation: 4,
@@ -825,14 +878,14 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
           children: [
             Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.teal[700], size: 24),
+                Icon(Icons.info_outline, color: colorScheme.primary, size: 24),
                 SizedBox(width: 8),
                 Text(
                   'Kullanım Kılavuzu',
-                  style: TextStyle(
+                  style: GoogleFonts.poppins(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.teal[700],
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.primary,
                   ),
                 ),
               ],
@@ -847,9 +900,9 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
               '• Metal eşyalardan ve elektronik cihazlardan uzak durun\n'
               '• Kalibrasyon için cihazı 8 şeklinde hareket ettirin\n'
               '• Sensör hatası alırsanız, cihazı açık alanda kalibre edin',
-              style: TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 14,
-                color: Colors.grey[700],
+                color: colorScheme.onBackground.withOpacity(0.7),
                 height: 1.5,
               ),
             ),
