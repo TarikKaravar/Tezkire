@@ -1,384 +1,178 @@
-import 'dart:math';
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter/services.dart';
-import 'package:sensors_plus/sensors_plus.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:math' as math;
+import 'dart:async';
 
 class CompassScreen extends StatefulWidget {
+  const CompassScreen({Key? key}) : super(key: key);
+
   @override
-  _CompassScreenState createState() => _CompassScreenState();
+  State<CompassScreen> createState() => _CompassScreenState();
 }
 
-class _CompassScreenState extends State<CompassScreen> with TickerProviderStateMixin {
-  double _deviceHeading = 0.0;
-  Position? _userPosition;
+class _CompassScreenState extends State<CompassScreen>
+    with TickerProviderStateMixin {
+  double _heading = 0.0;
+  double _qiblaDirection = 0.0;
+  Position? _currentPosition;
+  StreamSubscription<CompassEvent>? _compassSubscription;
+  bool _hasPermissions = false;
   bool _isLoading = true;
-  String? _errorMessage;
-  StreamSubscription<MagnetometerEvent>? _magnetometerSubscription;
-  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
-  bool _compassAvailable = false;
-  
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+  String _errorMessage = '';
+  bool _isNearQibla = false;
 
-  final double _kaabaLat = 21.4225;
-  final double _kaabaLng = 39.8262;
-
-  List<double> _magnetometerValues = [0, 0, 0];
-  List<double> _accelerometerValues = [0, 0, 0];
-  
-  List<double> _headingHistory = [];
-  static const int _historySize = 10;
-  static const double _smoothingFactor = 0.8;
+  // Kabe koordinatları
+  static const double kaabaLat = 21.4225;
+  static const double kaabaLng = 39.8262;
 
   @override
   void initState() {
     super.initState();
-    _initializeAnimations();
-    _initialize();
-    _startSensorListening();
+    _initializeCompass();
   }
 
-  void _initializeAnimations() {
-    _pulseController = AnimationController(
-      duration: Duration(milliseconds: 1200),
-      vsync: this,
-    );
-    _pulseAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.15,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.easeInOut,
-    ));
-    _pulseController.repeat(reverse: true);
+  @override
+  void dispose() {
+    _compassSubscription?.cancel();
+    super.dispose();
   }
 
-  Future<void> _initialize() async {
+  Future<void> _initializeCompass() async {
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() {
-            _errorMessage = 'Konum izni reddedildi';
-            _isLoading = false;
-          });
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
+      await _checkPermissions();
+      
+      if (_hasPermissions) {
+        await _getCurrentLocation();
+        await _startCompass();
+        
         setState(() {
-          _errorMessage = 'Konum izni kalıcı olarak reddedildi. Ayarlardan izin verin.';
           _isLoading = false;
         });
-        return;
-      }
-
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
+      } else {
         setState(() {
-          _errorMessage = 'Konum servisi kapalı. Lütfen GPS\'i açın.';
+          _errorMessage = 'Konum ve pusula izinleri gerekli';
           _isLoading = false;
         });
-        return;
       }
-
-      _userPosition = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.best,
-        timeLimit: Duration(seconds: 15),
-      );
-
-      setState(() {
-        _isLoading = false;
-      });
-
     } catch (e) {
       setState(() {
-        _errorMessage = 'Konum hatası: ${e.toString()}';
+        _errorMessage = 'Hata: $e';
         _isLoading = false;
       });
     }
   }
 
-  void _startSensorListening() {
-    try {
-      _magnetometerSubscription = magnetometerEvents.listen(
-        (MagnetometerEvent event) {
-          _magnetometerValues = [event.x, event.y, event.z];
-          _updateHeading();
-        },
-        onError: (error) {
-          setState(() {
-            _compassAvailable = false;
-            _errorMessage = 'Manyetometre hatası: Sensör verileri alınamıyor. Cihazı kalibre edin.';
-          });
-        },
-      );
-
-      _accelerometerSubscription = accelerometerEvents.listen(
-        (AccelerometerEvent event) {
-          _accelerometerValues = [event.x, event.y, event.z];
-          _updateHeading();
-        },
-        onError: (error) {
-          setState(() {
-            _compassAvailable = false;
-            _errorMessage = 'Akselerometre hatası: Sensör verileri alınamıyor. Cihazı kalibre edin.';
-          });
-        },
-      );
-
-    } catch (e) {
-      setState(() {
-        _compassAvailable = false;
-        _errorMessage = 'Sensör başlatma hatası: $e';
-      });
+  Future<void> _checkPermissions() async {
+    LocationPermission locationPermission = await Geolocator.checkPermission();
+    if (locationPermission == LocationPermission.denied) {
+      locationPermission = await Geolocator.requestPermission();
     }
+
+    var sensorPermission = await Permission.sensors.status;
+    if (sensorPermission.isDenied) {
+      sensorPermission = await Permission.sensors.request();
+    }
+
+    _hasPermissions = locationPermission == LocationPermission.whileInUse ||
+        locationPermission == LocationPermission.always;
   }
 
-  void _updateHeading() {
-    if (!mounted) return;
-
+  Future<void> _getCurrentLocation() async {
     try {
-      double magneticStrength = sqrt(
-        _magnetometerValues[0] * _magnetometerValues[0] +
-        _magnetometerValues[1] * _magnetometerValues[1] +
-        _magnetometerValues[2] * _magnetometerValues[2]
+      _currentPosition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
       );
 
-      if (magneticStrength < 15.0) {
-        print('Zayıf manyetik alan: $magneticStrength');
-        setState(() {
-          _compassAvailable = false;
-          _errorMessage = 'Zayıf manyetik alan algılandı. Lütfen cihazı kalibre edin.';
-        });
-        return;
+      if (_currentPosition != null) {
+        _qiblaDirection = _calculateQiblaDirection(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+        );
       }
-
-      double heading = _calculateHeadingWithTilt();
-      double smoothedHeading = _applySmoothingFilter(heading);
-
-      print('Cihaz Yönelimi: $smoothedHeading, Kıble Açısı: ${_calculateQiblaAngle(_userPosition!.latitude, _userPosition!.longitude)}');
-
-      setState(() {
-        _deviceHeading = smoothedHeading;
-        _compassAvailable = true;
-      });
-
     } catch (e) {
-      print('Başlık hesaplama hatası: $e');
+      print('Konum alınamadı: $e');
+      setState(() {
+        _errorMessage = 'Konum alınamadı: $e';
+      });
     }
   }
 
-  double _calculateHeadingWithTilt() {
-    double magX = _magnetometerValues[0];
-    double magY = _magnetometerValues[1];
-    double magZ = _magnetometerValues[2];
-    
-    double accX = _accelerometerValues[0];
-    double accY = _accelerometerValues[1];
-    double accZ = _accelerometerValues[2];
-
-    double accMagnitude = sqrt(accX * accX + accY * accY + accZ * accZ);
-    if (accMagnitude == 0) return _deviceHeading;
-
-    accX /= accMagnitude;
-    accY /= accMagnitude;
-    accZ /= accMagnitude;
-
-    double hX = magY * accZ - magZ * accY;
-    double hY = magZ * accX - magX * accZ;
-    
-    double heading = atan2(hY, hX) * 180 / pi;
-    
-    heading = (heading + 360) % 360;
-    
-    return heading;
-  }
-
-  double _applySmoothingFilter(double newHeading) {
-    _headingHistory.add(newHeading);
-    if (_headingHistory.length > _historySize) {
-      _headingHistory.removeAt(0);
+  Future<void> _startCompass() async {
+    if (await FlutterCompass.events != null) {
+      _compassSubscription = FlutterCompass.events!.listen(
+        (CompassEvent compass) {
+          if (mounted && compass.heading != null) {
+            setState(() {
+              _heading = compass.heading!;
+              _checkQiblaAlignment();
+            });
+          }
+        },
+        onError: (error) {
+          print('Pusula hatası: $error');
+          setState(() {
+            _errorMessage = 'Pusula hatası: $error';
+          });
+        },
+      );
+    } else {
+      setState(() {
+        _errorMessage = 'Bu cihazda pusula sensörü bulunmuyor';
+      });
     }
-    
-    if (_headingHistory.length == 1) return newHeading;
-    
-    double sinSum = 0, cosSum = 0;
-    double totalWeight = 0;
-    
-    for (int i = 0; i < _headingHistory.length; i++) {
-      double weight = (i + 1) / _headingHistory.length;
-      double radians = _headingHistory[i] * pi / 180;
-      sinSum += sin(radians) * weight;
-      cosSum += cos(radians) * weight;
-      totalWeight += weight;
-    }
-    
-    double avgRadians = atan2(sinSum / totalWeight, cosSum / totalWeight);
-    double smoothedHeading = (avgRadians * 180 / pi + 360) % 360;
-    
-    return smoothedHeading;
   }
 
-  double _calculateQiblaAngle(double userLat, double userLng) {
-    double userLatRad = userLat * pi / 180;
-    double userLngRad = userLng * pi / 180;
-    double kaabaLatRad = _kaabaLat * pi / 180;
-    double kaabaLngRad = _kaabaLng * pi / 180;
-
-    double deltaLng = kaabaLngRad - userLngRad;
-    
-    double y = sin(deltaLng) * cos(kaabaLatRad);
-    double x = cos(userLatRad) * sin(kaabaLatRad) - 
-               sin(userLatRad) * cos(kaabaLatRad) * cos(deltaLng);
-
-    double bearing = atan2(y, x);
-    
-    double qiblaAngle = (bearing * 180 / pi + 360) % 360;
-    
-    return qiblaAngle;
+  void _checkQiblaAlignment() {
+    double qiblaAngle = _qiblaAngle;
+    // Kıble yönünde ±10 derece tolerans
+    _isNearQibla = (qiblaAngle <= 10 || qiblaAngle >= 350);
   }
 
-  double _getQiblaDisplayAngle(double qiblaAngle) {
-    double displayAngle = (qiblaAngle - _deviceHeading + 360) % 360;
-    return displayAngle;
+  double _calculateQiblaDirection(double lat, double lng) {
+    double dLng = (kaabaLng - lng) * (math.pi / 180);
+    double lat1 = lat * (math.pi / 180);
+    double lat2 = kaabaLat * (math.pi / 180);
+
+    double y = math.sin(dLng) * math.cos(lat2);
+    double x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
+
+    double bearing = math.atan2(y, x) * (180 / math.pi);
+    return (bearing + 360) % 360;
   }
 
-  bool _isQiblaAligned() {
-    if (_userPosition == null) return false;
-
-    final qiblaAngle = _calculateQiblaAngle(_userPosition!.latitude, _userPosition!.longitude);
-    double angleDiff = (qiblaAngle - _deviceHeading + 360) % 360;
-
-    return angleDiff <= 15 || angleDiff >= 345;
+  double get _qiblaAngle {
+    return (_qiblaDirection - _heading + 360) % 360;
   }
 
-  void _triggerHapticFeedback() {
-    if (_isQiblaAligned()) {
-      HapticFeedback.lightImpact();
-    }
+  // Cihaz yönü - Kıble farkı
+  double get _deviceAngle {
+    return (_heading + 360) % 360;
+  }
+
+  // Kıble ile cihaz arasındaki fark
+  double get _angleDifference {
+    double diff = (_qiblaDirection - _heading).abs();
+    return diff > 180 ? 360 - diff : diff;
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      backgroundColor: colorScheme.background,
-      appBar: AppBar(
-        title: Text(
-          "Kıble Pusulası",
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-            color: colorScheme.onPrimary,
-          ),
-        ),
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.my_location_rounded),
-            onPressed: _recalibrate,
-          ),
-          IconButton(
-            icon: Icon(Icons.refresh_rounded),
-            onPressed: _refresh,
-          ),
-        ],
-      ),
-      body: _buildBody(context),
-    );
-  }
-
-  void _recalibrate() {
-    _headingHistory.clear();
-    _triggerHapticFeedback();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Pusula kalibre edildi'),
-        duration: Duration(seconds: 2),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-      ),
-    );
-  }
-
-  void _refresh() {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-      _compassAvailable = false;
-    });
-    _magnetometerSubscription?.cancel();
-    _accelerometerSubscription?.cancel();
-    _headingHistory.clear();
-    _initialize();
-    _startSensorListening();
-  }
-
-  Widget _buildBody(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     if (_isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(
-              color: colorScheme.primary,
-              strokeWidth: 3,
-            ),
-            SizedBox(height: 20),
-            Text(
-              'Konum ve sensörler hazırlanıyor...',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: colorScheme.onBackground.withOpacity(0.7),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.all(20),
+      return Scaffold(
+        backgroundColor: Colors.grey.shade100,
+        appBar: _buildAppBar(),
+        body: const Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 80, color: colorScheme.error),
-              SizedBox(height: 20),
+              CircularProgressIndicator(color: Colors.teal),
+              SizedBox(height: 16),
               Text(
-                _errorMessage!,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  color: colorScheme.onBackground,
-                ),
-              ),
-              SizedBox(height: 20),
-              Text(
-                'Cihazı 8 şeklinde hareket ettirerek kalibre edin veya GPS\'i kontrol edin.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: colorScheme.onBackground.withOpacity(0.7),
-                ),
-              ),
-              SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: _refresh,
-                icon: Icon(Icons.refresh),
-                label: Text('Tekrar Dene'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: colorScheme.onPrimary,
-                ),
+                'Pusula hazırlanıyor...',
+                style: TextStyle(color: Colors.black87, fontSize: 16),
               ),
             ],
           ),
@@ -386,537 +180,408 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
       );
     }
 
-    if (_userPosition == null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(color: colorScheme.primary),
-            SizedBox(height: 20),
-            Text(
-              'Konum verisi bekleniyor...',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: colorScheme.onBackground.withOpacity(0.7),
+    if (_errorMessage.isNotEmpty) {
+      return Scaffold(
+        backgroundColor: Colors.grey.shade100,
+        appBar: _buildAppBar(),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error, color: Colors.red, size: 64),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  _errorMessage,
+                  style: const TextStyle(color: Colors.black87, fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
               ),
-            ),
-          ],
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _isLoading = true;
+                    _errorMessage = '';
+                  });
+                  _initializeCompass();
+                },
+                child: const Text('Tekrar Dene'),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return _buildCompass(context);
-  }
-
-  Widget _buildCompass(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final qiblaAngle = _calculateQiblaAngle(_userPosition!.latitude, _userPosition!.longitude);
-    final qiblaDisplayAngle = _getQiblaDisplayAngle(qiblaAngle);
-    final isAligned = _isQiblaAligned();
-
-    if (isAligned) {
-      _triggerHapticFeedback();
-    }
-
-    return SingleChildScrollView(
-      child: Column(
+    return Scaffold(
+      backgroundColor: Colors.grey.shade100,
+      appBar: _buildAppBar(),
+      body: Column(
         children: [
-          Container(
-            margin: EdgeInsets.all(20),
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  _compassAvailable
-                      ? colorScheme.secondary.withOpacity(0.1)
-                      : colorScheme.error.withOpacity(0.1),
-                  _compassAvailable
-                      ? colorScheme.secondary.withOpacity(0.05)
-                      : colorScheme.error.withOpacity(0.05),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(25),
-              border: Border.all(
-                color: _compassAvailable
-                    ? colorScheme.secondary.withOpacity(0.3)
-                    : colorScheme.error.withOpacity(0.3),
-                width: 2,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _compassAvailable ? Icons.sensors : Icons.warning_amber_rounded,
-                  color: _compassAvailable ? colorScheme.secondary : colorScheme.error,
-                  size: 20,
-                ),
-                SizedBox(width: 8),
-                Text(
-                  _compassAvailable ? 'Sensör Aktif' : 'Sensör Hatası',
-                  style: GoogleFonts.poppins(
-                    color: _compassAvailable ? colorScheme.secondary : colorScheme.error,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 20),
+          
+          // Sensör durumu
+          _buildSensorStatus(),
+          
+          const SizedBox(height: 40),
+          
+          // Ana pusula
+          Expanded(
+            child: Center(
+              child: _buildMainCompass(),
             ),
           ),
-
-          Container(
-            width: 360,
-            height: 360,
-            margin: EdgeInsets.symmetric(horizontal: 20),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                AnimatedContainer(
-                  duration: Duration(milliseconds: 200),
-                  width: 350,
-                  height: 350,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isAligned ? colorScheme.secondary : colorScheme.outline,
-                      width: isAligned ? 6 : 3,
-                    ),
-                    boxShadow: isAligned
-                        ? [
-                            BoxShadow(
-                              color: colorScheme.secondary.withOpacity(0.4),
-                              blurRadius: 20,
-                              spreadRadius: 3,
-                            ),
-                          ]
-                        : [],
-                  ),
-                ),
-
-                Container(
-                  width: 330,
-                  height: 330,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: colorScheme.surface,
-                    border: Border.all(color: colorScheme.primary, width: 3),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.onSurface.withOpacity(0.15),
-                        blurRadius: 15,
-                        offset: Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      _buildCompassMarks(context),
-                      Container(
-                        width: 18,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: colorScheme.surface, width: 3),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                Transform.rotate(
-                  angle: qiblaDisplayAngle * pi / 180,
-                  child: Container(
-                    width: 360,
-                    height: 360,
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: AnimatedBuilder(
-                        animation: _pulseAnimation,
-                        builder: (context, child) {
-                          return Transform.scale(
-                            scale: isAligned ? _pulseAnimation.value : 1.0,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  margin: EdgeInsets.only(top: 8),
-                                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: isAligned ? colorScheme.secondary : colorScheme.primary,
-                                    borderRadius: BorderRadius.circular(20),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: colorScheme.onSurface.withOpacity(0.3),
-                                        blurRadius: 8,
-                                        offset: Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Text(
-                                    'KIBLE',
-                                    style: GoogleFonts.poppins(
-                                      color: colorScheme.onPrimary,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 1.2,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 6),
-                                Container(
-                                  width: 52,
-                                  height: 52,
-                                  decoration: BoxDecoration(
-                                    color: isAligned ? colorScheme.secondary : colorScheme.primary,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: colorScheme.onSurface.withOpacity(0.4),
-                                        blurRadius: 10,
-                                        offset: Offset(0, 5),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Icon(
-                                    Icons.navigation_rounded,
-                                    color: colorScheme.onPrimary,
-                                    size: 30,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-
-                Container(
-                  width: 360,
-                  height: 360,
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: Container(
-                      width: 8,
-                      height: 35,
-                      margin: EdgeInsets.only(top: 2),
-                      decoration: BoxDecoration(
-                        color: isAligned ? colorScheme.secondary : colorScheme.error,
-                        borderRadius: BorderRadius.circular(4),
-                        boxShadow: [
-                          BoxShadow(
-                            color: colorScheme.onSurface.withOpacity(0.3),
-                            blurRadius: 6,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          SizedBox(height: 30),
-
-          _buildStatusCard(context, qiblaAngle, qiblaDisplayAngle, isAligned),
-
-          SizedBox(height: 20),
-
-          _buildLocationCard(context),
-
-          SizedBox(height: 20),
-
-          _buildInstructionsCard(context),
-
-          SizedBox(height: 30),
+          
+          // Kıble durumu
+          _buildQiblaStatus(),
+          
+          const SizedBox(height: 20),
+          
+          // Alt bilgi paneli
+          _buildBottomInfo(),
+          
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  Widget _buildCompassMarks(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        for (int i = 0; i < 4; i++)
-          Transform.rotate(
-            angle: i * pi / 2,
-            child: Container(
-              width: 330,
-              height: 330,
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      margin: EdgeInsets.only(top: 15),
-                      child: Transform.rotate(
-                        angle: -i * pi / 2,
-                        child: Text(
-                          ['K', 'D', 'G', 'B'][i],
-                          style: GoogleFonts.poppins(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                            color: i == 0 ? colorScheme.error : colorScheme.onSurface,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Container(
-                      width: 4,
-                      height: 28,
-                      margin: EdgeInsets.only(top: 6),
-                      decoration: BoxDecoration(
-                        color: i == 0 ? colorScheme.error : colorScheme.onSurface.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        
-        for (int i = 0; i < 12; i++)
-          if (i % 3 != 0)
-            Transform.rotate(
-              angle: i * pi / 6,
-              child: Container(
-                width: 330,
-                height: 330,
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: Container(
-                    margin: EdgeInsets.only(top: 22),
-                    width: 2,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: colorScheme.outline,
-                      borderRadius: BorderRadius.circular(1),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.teal,
+      elevation: 0,
+      leading: IconButton(
+        onPressed: () => Navigator.pop(context),
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
+      ),
+      title: const Text(
+        'Kıble Pusulası',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      actions: [
+        IconButton(
+          onPressed: () => _getCurrentLocation(),
+          icon: const Icon(Icons.my_location, color: Colors.white),
+        ),
+        IconButton(
+          onPressed: () {},
+          icon: const Icon(Icons.refresh, color: Colors.white),
+        ),
       ],
     );
   }
 
-  Widget _buildStatusCard(BuildContext context, double qiblaAngle, double displayAngle, bool isAligned) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: EdgeInsets.symmetric(horizontal: 20),
-      elevation: 8,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Container(
-              padding: EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    isAligned
-                        ? colorScheme.secondary.withOpacity(0.1)
-                        : colorScheme.error.withOpacity(0.1),
-                    isAligned
-                        ? colorScheme.secondary.withOpacity(0.05)
-                        : colorScheme.error.withOpacity(0.05),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isAligned
-                      ? colorScheme.secondary.withOpacity(0.3)
-                      : colorScheme.error.withOpacity(0.3),
-                  width: 2,
-                ),
+  Widget _buildSensorStatus() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.green.shade100,
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: Colors.green.shade300),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.sensors, color: Colors.green.shade700, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            'Sensör Aktif',
+            style: TextStyle(
+              color: Colors.green.shade700,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainCompass() {
+    return Container(
+      width: 280,
+      height: 280,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade300,
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Dış çember - yeşil gradient
+          Container(
+            width: 280,
+            height: 280,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [
+                  Colors.teal.shade300,
+                  Colors.green.shade400,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    isAligned ? Icons.check_circle_rounded : Icons.adjust_rounded,
-                    color: isAligned ? colorScheme.secondary : colorScheme.error,
-                    size: 32,
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      isAligned ? 'KIBLE YÖNÜNDE HIZALI!' : 'KIBLE YÖNÜNE ÇEVİRİN',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: isAligned ? colorScheme.secondary : colorScheme.error,
-                      ),
+            ),
+          ),
+          
+          // İç beyaz çember
+          Container(
+            width: 260,
+            height: 260,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+            ),
+          ),
+          
+          // Derece işaretleri
+          Transform.rotate(
+            angle: -_heading * (math.pi / 180),
+            child: _buildCompassMarks(),
+          ),
+          
+          // Yön etiketleri
+          Transform.rotate(
+            angle: -_heading * (math.pi / 180),
+            child: _buildDirectionLabels(),
+          ),
+          
+          // Kıble göstergesi
+          Transform.rotate(
+            angle: _qiblaAngle * (math.pi / 180),
+            child: _buildQiblaPointer(),
+          ),
+          
+          // Merkez nokta
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: Colors.teal.shade600,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompassMarks() {
+    return SizedBox(
+      width: 260,
+      height: 260,
+      child: Stack(
+        children: List.generate(36, (index) {
+          final angle = index * 10.0;
+          final isMainMark = angle % 90 == 0;
+          
+          return Transform.rotate(
+            angle: angle * (math.pi / 180),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Container(
+                width: isMainMark ? 3 : 1,
+                height: isMainMark ? 20 : 10,
+                margin: const EdgeInsets.only(top: 10),
+                color: Colors.grey.shade400,
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildDirectionLabels() {
+    final directions = [
+      {'angle': 0.0, 'label': 'K'},
+      {'angle': 90.0, 'label': 'D'},
+      {'angle': 180.0, 'label': 'G'},
+      {'angle': 270.0, 'label': 'B'},
+    ];
+
+    return SizedBox(
+      width: 260,
+      height: 260,
+      child: Stack(
+        children: directions.map((direction) {
+          final angle = direction['angle'] as double;
+          final label = direction['label'] as String;
+          
+          return Transform.rotate(
+            angle: angle * (math.pi / 180),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 35),
+                child: Transform.rotate(
+                  angle: _heading * (math.pi / 180),
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ],
+                ),
               ),
             ),
-            
-            SizedBox(height: 20),
-            
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildAngleInfo(context, 'Cihaz', '${_deviceHeading.toStringAsFixed(0)}°', colorScheme.primary),
-                _buildAngleInfo(context, 'Kıble', '${qiblaAngle.toStringAsFixed(0)}°', colorScheme.secondary),
-                _buildAngleInfo(context, 'Fark', '${displayAngle.toStringAsFixed(0)}°', 
-                    isAligned ? colorScheme.secondary : colorScheme.error),
-              ],
-            ),
-          ],
-        ),
+          );
+        }).toList(),
       ),
     );
   }
 
-  Widget _buildLocationCard(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    if (_userPosition == null) return Container();
-    
-    return Card(
-      margin: EdgeInsets.symmetric(horizontal: 20),
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Icon(Icons.location_on, color: colorScheme.primary, size: 24),
-                SizedBox(width: 8),
-                Text(
-                  'Konum Bilgisi',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Enlem:', style: GoogleFonts.poppins(color: colorScheme.onBackground.withOpacity(0.7))),
-                    Text('${_userPosition!.latitude.toStringAsFixed(4)}°',
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('Boylam:', style: GoogleFonts.poppins(color: colorScheme.onBackground.withOpacity(0.7))),
-                    Text('${_userPosition!.longitude.toStringAsFixed(4)}°',
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Doğruluk: ±${_userPosition!.accuracy.toStringAsFixed(0)}m',
-              style: GoogleFonts.poppins(color: colorScheme.onBackground.withOpacity(0.7), fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAngleInfo(BuildContext context, String label, String value, Color color) {
+  Widget _buildQiblaPointer() {
     return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Kıble etiketi
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.green.shade600,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: const Text(
+            'KIBLE',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        
+        // Kırmızı ok işareti
+        const SizedBox(height: 4),
+        Container(
+          width: 0,
+          height: 0,
+          decoration: const BoxDecoration(
+            border: Border(
+              left: BorderSide(width: 6, color: Colors.transparent),
+              right: BorderSide(width: 6, color: Colors.transparent),
+              bottom: BorderSide(width: 10, color: Colors.red),
+            ),
+          ),
+        ),
+        
+        // Yeşil daire
+        const SizedBox(height: 8),
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.green.shade600,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.arrow_upward,
+            color: Colors.white,
+            size: 24,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQiblaStatus() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _isNearQibla ? Colors.green.shade100 : Colors.orange.shade100,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: _isNearQibla ? Colors.green.shade300 : Colors.orange.shade300,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _isNearQibla ? Icons.check_circle : Icons.info,
+            color: _isNearQibla ? Colors.green.shade700 : Colors.orange.shade700,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              _isNearQibla ? 'KIBLE YÖNÜNDE HIZALI!' : 'Kıble yönünü bulun',
+              style: TextStyle(
+                color: _isNearQibla ? Colors.green.shade700 : Colors.orange.shade700,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomInfo() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade300,
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildInfoColumn('Cihaz', '${_deviceAngle.round()}°', Colors.blue),
+          _buildInfoColumn('Kıble', '${_qiblaDirection.round()}°', Colors.green),
+          _buildInfoColumn('Fark', '${_angleDifference.round()}°', Colors.green),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoColumn(String label, String value, Color color) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           label,
-          style: GoogleFonts.poppins(
+          style: TextStyle(
+            color: Colors.grey.shade600,
             fontSize: 14,
-            color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
           ),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
           value,
-          style: GoogleFonts.poppins(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
+          style: TextStyle(
             color: color,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ],
     );
-  }
-
-  Widget _buildInstructionsCard(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: EdgeInsets.symmetric(horizontal: 20),
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Icon(Icons.info_outline, color: colorScheme.primary, size: 24),
-                SizedBox(width: 8),
-                Text(
-                  'Kullanım Kılavuzu',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 12),
-            Text(
-              '• Telefonu yatay düzlemde (masa gibi) tutun\n'
-              '• Yeşil KIBLE oku her zaman Kabe\'nin gerçek yönünü gösterir\n'
-              '• Kendinizi (telefonu değil) çevirin\n'
-              '• Yeşil oku üstteki kırmızı çizgi ile hizalayın\n'
-              '• Hizalandığında çerçeve yeşil olur ve titreşim hissedersiniz\n'
-              '• Metal eşyalardan ve elektronik cihazlardan uzak durun\n'
-              '• Kalibrasyon için cihazı 8 şeklinde hareket ettirin\n'
-              '• Sensör hatası alırsanız, cihazı açık alanda kalibre edin',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: colorScheme.onBackground.withOpacity(0.7),
-                height: 1.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _magnetometerSubscription?.cancel();
-    _accelerometerSubscription?.cancel();
-    _pulseController.dispose();
-    super.dispose();
   }
 }
