@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_app/services/notification_service.dart';
+import 'package:permission_handler/permission_handler.dart'; // Yeni eklendi
 
 class AppColors {
-  static const Color primary = Color(0xFF4CAF50); // Green tone matching home_screen
-  static const Color secondary = Color(0xFF81C784); // Lighter green for secondary elements
-  
+  static const Color primary = Color(0xFF4CAF50);
+  static const Color secondary = Color(0xFF81C784);
+
   static Color getPrayerColor(BuildContext context) {
     return Theme.of(context).colorScheme.primary;
   }
-  
+
   static Color primaryLight(BuildContext context) {
     return Theme.of(context).colorScheme.primary.withOpacity(0.1);
   }
@@ -25,8 +27,7 @@ class NotificationScreen extends StatefulWidget {
 class _NotificationScreenState extends State<NotificationScreen> with TickerProviderStateMixin {
   late AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
-  
-  // Bildirim ayarları
+
   Map<String, bool> prayerNotifications = {
     'Fajr': true,
     'Dhuhr': true,
@@ -34,7 +35,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
     'Maghrib': true,
     'Isha': true,
   };
-  
+
   Map<String, int> notificationMinutes = {
     'Fajr': 30,
     'Dhuhr': 15,
@@ -42,11 +43,11 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
     'Maghrib': 10,
     'Isha': 30,
   };
-  
+
   bool masterNotification = true;
   bool soundEnabled = true;
   bool vibrationEnabled = true;
-  
+
   final Map<String, String> turkishPrayerNames = {
     'Fajr': 'SABAH',
     'Dhuhr': 'ÖĞLE',
@@ -54,7 +55,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
     'Maghrib': 'AKŞAM',
     'Isha': 'YATSI',
   };
-  
+
   final Map<String, IconData> prayerIcons = {
     'Fajr': Icons.wb_sunny_outlined,
     'Dhuhr': Icons.wb_sunny,
@@ -66,12 +67,13 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
   @override
   void initState() {
     super.initState();
-    _loadSettings(); // Load settings when the screen initializes
+    _loadSettings();
+    _checkAlarmPermission(); // İzin kontrolünü başlat
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
-    
+
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.5),
       end: Offset.zero,
@@ -79,7 +81,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
       parent: _slideController,
       curve: Curves.elasticOut,
     ));
-    
+
     _slideController.forward();
   }
 
@@ -89,14 +91,62 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
     super.dispose();
   }
 
-  // Load settings from SharedPreferences
+  // SCHEDULE_EXACT_ALARM iznini kontrol et ve iste
+  Future<void> _checkAlarmPermission() async {
+    final status = await Permission.scheduleExactAlarm.status;
+    if (status.isDenied) {
+      final result = await Permission.scheduleExactAlarm.request();
+      if (result.isPermanentlyDenied) {
+        _showPermissionDialog();
+      }
+    } else if (status.isPermanentlyDenied) {
+      _showPermissionDialog();
+    }
+  }
+
+  // İzin reddedildiğinde kullanıcıyı bilgilendiren dialog
+  void _showPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Bildirim İzni Gerekli',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          'Namaz bildirimlerinin doğru çalışması için tam zamanlı alarm izni gerekiyor. Lütfen cihaz ayarlarından bu izni verin.',
+          style: GoogleFonts.poppins(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'İptal',
+              style: GoogleFonts.poppins(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              await openAppSettings();
+              Navigator.pop(context);
+            },
+            child: Text(
+              'Ayarlara Git',
+              style: GoogleFonts.poppins(color: Theme.of(context).colorScheme.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       masterNotification = prefs.getBool('masterNotification') ?? true;
       soundEnabled = prefs.getBool('soundEnabled') ?? true;
       vibrationEnabled = prefs.getBool('vibrationEnabled') ?? true;
-      
+
       prayerNotifications = {
         'Fajr': prefs.getBool('prayer_Fajr') ?? true,
         'Dhuhr': prefs.getBool('prayer_Dhuhr') ?? true,
@@ -104,7 +154,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
         'Maghrib': prefs.getBool('prayer_Maghrib') ?? true,
         'Isha': prefs.getBool('prayer_Isha') ?? true,
       };
-      
+
       notificationMinutes = {
         'Fajr': prefs.getInt('minutes_Fajr') ?? 30,
         'Dhuhr': prefs.getInt('minutes_Dhuhr') ?? 15,
@@ -115,27 +165,29 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
     });
   }
 
-  // Save settings to SharedPreferences
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('masterNotification', masterNotification);
     await prefs.setBool('soundEnabled', soundEnabled);
     await prefs.setBool('vibrationEnabled', vibrationEnabled);
-    
+
     for (var key in prayerNotifications.keys) {
       await prefs.setBool('prayer_$key', prayerNotifications[key]!);
       await prefs.setInt('minutes_$key', notificationMinutes[key]!);
     }
+
+    // Reschedule notifications after saving settings
+    await NotificationService().schedulePrayerNotifications();
   }
 
   void _showTimePickerDialog(String prayerKey) {
     final colorScheme = Theme.of(context).colorScheme;
-    
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         int tempMinutes = notificationMinutes[prayerKey] ?? 30;
-        
+
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -224,7 +276,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   onPressed: () {
                     setState(() {
                       notificationMinutes[prayerKey] = tempMinutes;
-                      _saveSettings(); // Save settings when time is updated
+                      _saveSettings();
                     });
                     Navigator.of(context).pop();
                   },
@@ -250,13 +302,13 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
 
   Widget _buildMasterSwitch(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    
+
     return Container(
       margin: const EdgeInsets.all(20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: masterNotification 
+          colors: masterNotification
               ? [colorScheme.primary.withOpacity(0.9), colorScheme.primary.withOpacity(0.7)]
               : [colorScheme.surface, colorScheme.surface],
           begin: Alignment.topLeft,
@@ -264,13 +316,13 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: masterNotification 
+          color: masterNotification
               ? colorScheme.primary.withOpacity(0.3)
               : colorScheme.outline.withOpacity(0.3),
         ),
         boxShadow: [
           BoxShadow(
-            color: masterNotification 
+            color: masterNotification
                 ? colorScheme.primary.withOpacity(0.2)
                 : colorScheme.shadow.withOpacity(0.05),
             blurRadius: 10,
@@ -283,7 +335,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: masterNotification 
+              color: masterNotification
                   ? colorScheme.onPrimary.withOpacity(0.2)
                   : colorScheme.primary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
@@ -311,7 +363,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   masterNotification ? 'Aktif' : 'Kapalı',
                   style: GoogleFonts.poppins(
                     fontSize: 14,
-                    color: masterNotification 
+                    color: masterNotification
                         ? colorScheme.onPrimary.withOpacity(0.8)
                         : colorScheme.onSurface.withOpacity(0.6),
                   ),
@@ -324,7 +376,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             onChanged: (value) {
               setState(() {
                 masterNotification = value;
-                _saveSettings(); // Save settings when master switch is toggled
+                _saveSettings();
               });
             },
             activeColor: colorScheme.onPrimary,
@@ -340,7 +392,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
     final colorScheme = Theme.of(context).colorScheme;
     final isEnabled = prayerNotifications[prayerKey] ?? false;
     final minutes = notificationMinutes[prayerKey] ?? 30;
-    
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -354,7 +406,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            gradient: isEnabled 
+            gradient: isEnabled
                 ? LinearGradient(
                     colors: [
                       colorScheme.primary.withOpacity(0.1),
@@ -372,7 +424,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isEnabled 
+                      color: isEnabled
                           ? colorScheme.primary.withOpacity(0.2)
                           : colorScheme.onSurface.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -400,8 +452,8 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                           isEnabled ? '$minutes dakika önce hatırlat' : 'Bildirim kapalı',
                           style: GoogleFonts.poppins(
                             fontSize: 14,
-                            color: isEnabled 
-                                ? colorScheme.primary 
+                            color: isEnabled
+                                ? colorScheme.primary
                                 : colorScheme.onSurface.withOpacity(0.5),
                             fontWeight: isEnabled ? FontWeight.w500 : FontWeight.w400,
                           ),
@@ -411,12 +463,14 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   ),
                   Switch(
                     value: isEnabled && masterNotification,
-                    onChanged: masterNotification ? (value) {
-                      setState(() {
-                        prayerNotifications[prayerKey] = value;
-                        _saveSettings(); // Save settings when prayer switch is toggled
-                      });
-                    } : null,
+                    onChanged: masterNotification
+                        ? (value) {
+                            setState(() {
+                              prayerNotifications[prayerKey] = value;
+                              _saveSettings();
+                            });
+                          }
+                        : null,
                     activeColor: colorScheme.primary,
                     activeTrackColor: colorScheme.primary.withOpacity(0.3),
                     inactiveTrackColor: colorScheme.onSurface.withOpacity(0.3),
@@ -469,7 +523,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
 
   Widget _buildSoundSettings(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       padding: const EdgeInsets.all(20),
@@ -510,12 +564,14 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
               ),
               Switch(
                 value: soundEnabled && masterNotification,
-                onChanged: masterNotification ? (value) {
-                  setState(() {
-                    soundEnabled = value;
-                    _saveSettings(); // Save settings when sound switch is toggled
-                  });
-                } : null,
+                onChanged: masterNotification
+                    ? (value) {
+                        setState(() {
+                          soundEnabled = value;
+                          _saveSettings();
+                        });
+                      }
+                    : null,
                 activeColor: colorScheme.primary,
                 activeTrackColor: colorScheme.primary.withOpacity(0.3),
                 inactiveTrackColor: colorScheme.onSurface.withOpacity(0.3),
@@ -541,12 +597,14 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
               ),
               Switch(
                 value: vibrationEnabled && masterNotification,
-                onChanged: masterNotification ? (value) {
-                  setState(() {
-                    vibrationEnabled = value;
-                    _saveSettings(); // Save settings when vibration switch is toggled
-                  });
-                } : null,
+                onChanged: masterNotification
+                    ? (value) {
+                        setState(() {
+                          vibrationEnabled = value;
+                          _saveSettings();
+                        });
+                      }
+                    : null,
                 activeColor: colorScheme.primary,
                 activeTrackColor: colorScheme.primary.withOpacity(0.3),
                 inactiveTrackColor: colorScheme.onSurface.withOpacity(0.3),
@@ -561,7 +619,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    
+
     return Scaffold(
       backgroundColor: colorScheme.background,
       body: SafeArea(
@@ -569,7 +627,6 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
           position: _slideAnimation,
           child: Column(
             children: [
-              // Header
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
@@ -594,22 +651,15 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   ),
                 ),
               ),
-              
+
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
-                      // Master Switch
                       _buildMasterSwitch(context),
-                      
-                      // Prayer Notifications
-                      ...prayerNotifications.keys.map((prayerKey) => 
-                        _buildPrayerNotificationCard(prayerKey)
-                      ),
-                      
-                      // Sound Settings
+                      ...prayerNotifications.keys.map((prayerKey) =>
+                          _buildPrayerNotificationCard(prayerKey)),
                       _buildSoundSettings(context),
-                      
                       const SizedBox(height: 20),
                     ],
                   ),

@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_app/core/themes.dart';
-import 'screens/app_colors.dart'; // Güncellenmiş AppColors ve AppThemes için
+import 'package:flutter_app/services/notification_service.dart';
+import 'screens/app_colors.dart';
 import 'screens/loading_screen.dart';
-import 'core/theme_manager.dart'; // ThemeManager'ı import edin
+import 'core/theme_manager.dart';
 
 void main() async {
-  // Flutter widget binding'i başlatır
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // Initialize NotificationService
+  await NotificationService().init();
+  await NotificationService().schedulePrayerNotifications();
+
   // Tema ayarlarını yükle
   await ThemeManager().loadThemeFromPrefs();
-  
-  // Sistem UI ayarları (status bar, navigation bar)
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -21,13 +24,12 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
-  
-  // Desteklenen yönleri ayarla (sadece dikey)
+
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  
+
   runApp(const MainApp());
 }
 
@@ -37,18 +39,14 @@ class MainApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
-      // ThemeManager'ı dinle
       valueListenable: ThemeManager(),
       builder: (context, themeMode, child) {
         return MaterialApp(
           title: 'Namaz Vakitleri',
           debugShowCheckedModeBanner: false,
-          
-          // Dinamik tema ayarları
           theme: AppThemes.lightTheme,
           darkTheme: AppThemes.darkTheme,
-          themeMode: themeMode, // Gerçek zamanlı tema modu
-          
+          themeMode: themeMode,
           home: const LoadingScreen(),
         );
       },
@@ -56,12 +54,9 @@ class MainApp extends StatelessWidget {
   }
 }
 
-// Eski ThemeProvider'ı kaldırdık, artık ThemeManager kullanıyoruz
-
-// Tema değiştirme widget'ı (güncellenmiş)
 class ThemeToggleButton extends StatelessWidget {
   const ThemeToggleButton({Key? key}) : super(key: key);
-  
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
@@ -96,10 +91,9 @@ class ThemeToggleButton extends StatelessWidget {
   }
 }
 
-// Hızlı tema değiştirme butonu (güncellenmiş)
 class QuickThemeToggle extends StatelessWidget {
   const QuickThemeToggle({Key? key}) : super(key: key);
-  
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
@@ -107,7 +101,6 @@ class QuickThemeToggle extends StatelessWidget {
       builder: (context, currentTheme, child) {
         return FloatingActionButton.small(
           onPressed: () {
-            // Hızlı geçiş: System -> Light -> Dark -> System
             ThemeMode newMode;
             switch (currentTheme) {
               case ThemeMode.system:
