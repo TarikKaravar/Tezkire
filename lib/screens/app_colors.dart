@@ -16,6 +16,8 @@ class AppColors {
   static const Color surfaceDark = Color(0xFF1E1E1E);
   static const Color textDark = Color(0xFFFFFFFF);
   static const Color textSecondaryDark = Color(0xFFB3B3B3);
+
+  static var error;
   
   // Context'e göre dinamik renkler
   static Color background(BuildContext context) {
