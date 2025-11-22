@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
-import 'home_screen.dart';
+// HomeScreen yerine MainScreen import edilmeli
+import 'package:flutter_app/screens/main_screen.dart'; 
 
 class LoadingScreen extends StatefulWidget {
   const LoadingScreen({super.key});
@@ -13,16 +14,17 @@ class _LoadingScreenState extends State<LoadingScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateToHomeScreen();
+    _navigateToMainScreen(); // Fonksiyon ismi güncellendi
   }
 
-  void _navigateToHomeScreen() {
+  void _navigateToMainScreen() {
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
+            // BURADAKİ DEĞİŞİKLİK: HomeScreen() -> MainScreen()
+            pageBuilder: (context, animation, secondaryAnimation) => const MainScreen(),
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
               const begin = Offset(1.0, 0.0);
               const end = Offset.zero;

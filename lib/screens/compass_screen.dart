@@ -4,10 +4,11 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:math' as math;
 import 'dart:async';
-import 'package:google_fonts/google_fonts.dart'; // Added for consistent typography
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_app/screens/app_colors.dart';
 
 class CompassScreen extends StatefulWidget {
-  const CompassScreen({Key? key}) : super(key: key);
+  const CompassScreen({super.key});
 
   @override
   State<CompassScreen> createState() => _CompassScreenState();
@@ -23,18 +24,15 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   String _hataMesaji = '';
   bool _kibleyeYakin = false;
 
-  // Animasyon kontrolcüsü
   late AnimationController _animasyonKontrolcusu;
   late Animation<double> _pusulaAnimasyonu;
 
-  // Kabe koordinatları
   static const double kabeEnlem = 21.4225;
   static const double kabeBoylam = 39.8262;
 
   @override
   void initState() {
     super.initState();
-    // Animasyon kontrolcüsünü başlat
     _animasyonKontrolcusu = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -55,26 +53,34 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   Future<void> _pusulayiBaslat() async {
     try {
       await _izinleriKontrolEt();
+      if (!mounted) return; // DÜZELTME: Ekran kapandıysa dur.
 
       if (_izinlerVar) {
         await _mevcutKonumuAl();
+        if (!mounted) return; // DÜZELTME
+
         await _pusulayiCalistir();
+        if (!mounted) return; // DÜZELTME
 
         setState(() {
           _yukleniyor = false;
         });
         _animasyonKontrolcusu.forward();
       } else {
+        if (mounted) { // DÜZELTME
+          setState(() {
+            _hataMesaji = 'Konum ve pusula izinleri gerekli';
+            _yukleniyor = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) { // DÜZELTME
         setState(() {
-          _hataMesaji = 'Konum ve pusula izinleri gerekli';
+          _hataMesaji = 'Hata: $e';
           _yukleniyor = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _hataMesaji = 'Hata: $e';
-        _yukleniyor = false;
-      });
     }
   }
 
@@ -106,16 +112,21 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
         );
       }
     } catch (e) {
-      print('Konum alınamadı: $e');
-      setState(() {
-        _hataMesaji = 'Konum alınamadı: $e';
-      });
+      debugPrint('Konum alınamadı: $e');
+      if (mounted) { // DÜZELTME
+        setState(() {
+          _hataMesaji = 'Konum alınamadı: $e';
+        });
+      }
     }
   }
 
   Future<void> _pusulayiCalistir() async {
-    if (await FlutterCompass.events != null) {
-      _pusulaAboneligi = FlutterCompass.events!.listen(
+    // FlutterCompass.events bir Stream getter olduğu için await kaldırıldı
+    final stream = FlutterCompass.events;
+    
+    if (stream != null) {
+      _pusulaAboneligi = stream.listen(
         (CompassEvent pusula) {
           if (mounted && pusula.heading != null) {
             setState(() {
@@ -126,22 +137,25 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
           }
         },
         onError: (hata) {
-          print('Pusula hatası: $hata');
-          setState(() {
-            _hataMesaji = 'Pusula hatası: $hata';
-          });
+          debugPrint('Pusula hatası: $hata');
+          if (mounted) { // DÜZELTME
+            setState(() {
+              _hataMesaji = 'Pusula hatası: $hata';
+            });
+          }
         },
       );
     } else {
-      setState(() {
-        _hataMesaji = 'Bu cihazda pusula sensörü bulunmuyor';
-      });
+      if (mounted) { // DÜZELTME
+        setState(() {
+          _hataMesaji = 'Bu cihazda pusula sensörü bulunmuyor';
+        });
+      }
     }
   }
 
   void _kibleHizasiniKontrolEt() {
     double kibleAcisi = _kibleAcisi;
-    // Kıble yönünde ±10 derece tolerans
     _kibleyeYakin = (kibleAcisi <= 10 || kibleAcisi >= 350);
   }
 
@@ -173,25 +187,23 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
+    // Haki Yeşil Teması (AppColors)
     if (_yukleniyor) {
       return Scaffold(
-        backgroundColor: colorScheme.background,
+        backgroundColor: AppColors.background(context),
         appBar: _uygulamaCubugunuOlustur(),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(
-                color: colorScheme.primary,
-                backgroundColor: colorScheme.primary.withOpacity(0.2),
+              const CircularProgressIndicator(
+                color: AppColors.primary,
               ),
               const SizedBox(height: 16),
               Text(
                 'Pusula hazırlanıyor...',
                 style: GoogleFonts.poppins(
-                  color: colorScheme.onBackground,
+                  color: AppColors.text(context),
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                 ),
@@ -204,15 +216,15 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
 
     if (_hataMesaji.isNotEmpty) {
       return Scaffold(
-        backgroundColor: colorScheme.background,
+        backgroundColor: AppColors.background(context),
         appBar: _uygulamaCubugunuOlustur(),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.error_outline,
-                color: colorScheme.error,
+                color: Colors.red,
                 size: 64,
               ),
               const SizedBox(height: 16),
@@ -221,7 +233,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                 child: Text(
                   _hataMesaji,
                   style: GoogleFonts.poppins(
-                    color: colorScheme.onBackground,
+                    color: AppColors.text(context),
                     fontSize: 16,
                     fontWeight: FontWeight.w400,
                   ),
@@ -238,8 +250,8 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                   _pusulayiBaslat();
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: colorScheme.onPrimary,
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -260,7 +272,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
     }
 
     return Scaffold(
-      backgroundColor: colorScheme.background,
+      backgroundColor: AppColors.background(context),
       appBar: _uygulamaCubugunuOlustur(),
       body: SafeArea(
         child: Column(
@@ -284,14 +296,13 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   }
 
   PreferredSizeWidget _uygulamaCubugunuOlustur() {
-    final colorScheme = Theme.of(context).colorScheme;
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
       flexibleSpace: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.8)],
+            colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -299,12 +310,12 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
       ),
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
-        icon: Icon(Icons.arrow_back, color: colorScheme.onPrimary),
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
       ),
       title: Text(
         'Kıble Pusulası',
         style: GoogleFonts.poppins(
-          color: colorScheme.onPrimary,
+          color: Colors.white,
           fontSize: 20,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
@@ -314,28 +325,27 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
       actions: [
         IconButton(
           onPressed: () => _mevcutKonumuAl(),
-          icon: Icon(Icons.my_location, color: colorScheme.onPrimary),
+          icon: const Icon(Icons.my_location, color: Colors.white),
         ),
         IconButton(
           onPressed: _pusulayiBaslat,
-          icon: Icon(Icons.refresh, color: colorScheme.onPrimary),
+          icon: const Icon(Icons.refresh, color: Colors.white),
         ),
       ],
     );
   }
 
   Widget _sensorDurumunuOlustur() {
-    final colorScheme = Theme.of(context).colorScheme;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.onSurface.withOpacity(0.2),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -344,16 +354,16 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
+          const Icon(
             Icons.sensors,
-            color: colorScheme.primary,
+            color: AppColors.primary,
             size: 20,
           ),
           const SizedBox(width: 8),
           Text(
             'Sensör Aktif',
             style: GoogleFonts.poppins(
-              color: colorScheme.onSurface,
+              color: AppColors.text(context),
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -364,7 +374,6 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   }
 
   Widget _anaPusulayiOlustur() {
-    final colorScheme = Theme.of(context).colorScheme;
     return AnimatedBuilder(
       animation: _animasyonKontrolcusu,
       builder: (context, child) {
@@ -373,10 +382,10 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
           height: 300,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: colorScheme.surface,
+            color: AppColors.surface(context),
             boxShadow: [
               BoxShadow(
-                color: colorScheme.onSurface.withOpacity(0.3),
+                color: Colors.black.withOpacity(0.2),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -393,8 +402,8 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
                     colors: [
-                      colorScheme.primary,
-                      colorScheme.primary.withOpacity(0.7),
+                      AppColors.primary,
+                      AppColors.primary.withOpacity(0.7),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -407,7 +416,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                 height: 280,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: colorScheme.surface,
+                  color: AppColors.surface(context),
                 ),
               ),
               // Pusula işaretleri
@@ -430,11 +439,11 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                 width: 14,
                 height: 14,
                 decoration: BoxDecoration(
-                  color: colorScheme.primary,
+                  color: AppColors.primary,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: colorScheme.primary.withOpacity(0.3),
+                      color: AppColors.primary.withOpacity(0.3),
                       blurRadius: 6,
                     ),
                   ],
@@ -448,7 +457,6 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   }
 
   Widget _pusulaIsaretleriniOlustur() {
-    final colorScheme = Theme.of(context).colorScheme;
     return SizedBox(
       width: 280,
       height: 280,
@@ -466,7 +474,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                 height: anaIsaret ? 24 : 12,
                 margin: const EdgeInsets.only(top: 12),
                 decoration: BoxDecoration(
-                  color: colorScheme.onSurface.withOpacity(0.6),
+                  color: AppColors.text(context).withOpacity(0.6),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -478,7 +486,6 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   }
 
   Widget _yonEtiketleriniOlustur() {
-    final colorScheme = Theme.of(context).colorScheme;
     final yonler = [
       {'aci': 0.0, 'etiket': 'K'},
       {'aci': 90.0, 'etiket': 'D'},
@@ -503,7 +510,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
                 child: Text(
                   etiket,
                   style: GoogleFonts.poppins(
-                    color: colorScheme.onSurface,
+                    color: AppColors.text(context),
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.2,
@@ -518,18 +525,17 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   }
 
   Widget _kibleGostergesiniOlustur() {
-    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: colorScheme.primary,
+            color: AppColors.primary,
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: colorScheme.primary.withOpacity(0.3),
+                color: AppColors.primary.withOpacity(0.3),
                 blurRadius: 6,
               ),
             ],
@@ -537,7 +543,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
           child: Text(
             'KIBLE',
             style: GoogleFonts.poppins(
-              color: colorScheme.onPrimary,
+              color: Colors.white,
               fontSize: 14,
               fontWeight: FontWeight.w700,
               letterSpacing: 1,
@@ -548,11 +554,11 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
         Container(
           width: 0,
           height: 0,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             border: Border(
               left: BorderSide(width: 8, color: Colors.transparent),
               right: BorderSide(width: 8, color: Colors.transparent),
-              bottom: BorderSide(width: 12, color: colorScheme.secondary),
+              bottom: BorderSide(width: 12, color: AppColors.secondary),
             ),
           ),
         ),
@@ -561,18 +567,18 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: colorScheme.primary,
+            color: AppColors.primary,
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: colorScheme.primary.withOpacity(0.3),
+                color: AppColors.primary.withOpacity(0.3),
                 blurRadius: 8,
               ),
             ],
           ),
-          child: Icon(
+          child: const Icon(
             Icons.arrow_upward,
-            color: colorScheme.onPrimary,
+            color: Colors.white,
             size: 28,
           ),
         ),
@@ -581,20 +587,19 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   }
 
   Widget _kibleDurumunuOlustur() {
-    final colorScheme = Theme.of(context).colorScheme;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _kibleyeYakin ? colorScheme.primary.withOpacity(0.1) : colorScheme.surface,
+        color: _kibleyeYakin ? AppColors.primary.withOpacity(0.1) : AppColors.surface(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: _kibleyeYakin ? colorScheme.primary : colorScheme.outline.withOpacity(0.5),
+          color: _kibleyeYakin ? AppColors.primary : Colors.grey.withOpacity(0.5),
         ),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.onSurface.withOpacity(0.2),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -604,7 +609,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
         children: [
           Icon(
             _kibleyeYakin ? Icons.check_circle : Icons.info,
-            color: _kibleyeYakin ? colorScheme.primary : colorScheme.secondary,
+            color: _kibleyeYakin ? AppColors.primary : AppColors.secondary,
             size: 28,
           ),
           const SizedBox(width: 12),
@@ -612,7 +617,7 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
             child: Text(
               _kibleyeYakin ? 'KIBLE YÖNÜNE HIZALI!' : 'Kıble yönünü bulun',
               style: GoogleFonts.poppins(
-                color: _kibleyeYakin ? colorScheme.primary : colorScheme.onSurface,
+                color: _kibleyeYakin ? AppColors.primary : AppColors.text(context),
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.5,
@@ -625,16 +630,15 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
   }
 
   Widget _altBilgiPaneliniOlustur() {
-    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.onSurface.withOpacity(0.2),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -643,23 +647,22 @@ class _CompassScreenState extends State<CompassScreen> with TickerProviderStateM
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _bilgiSutunuOlustur('Cihaz', '${_cihazAcisi.round()}°', colorScheme.primary),
-          _bilgiSutunuOlustur('Kıble', '${_kibleYonu.round()}°', colorScheme.primary),
-          _bilgiSutunuOlustur('Fark', '${_aciFarki.round()}°', colorScheme.secondary),
+          _bilgiSutunuOlustur('Cihaz', '${_cihazAcisi.round()}°', AppColors.primary),
+          _bilgiSutunuOlustur('Kıble', '${_kibleYonu.round()}°', AppColors.primary),
+          _bilgiSutunuOlustur('Fark', '${_aciFarki.round()}°', AppColors.secondary),
         ],
       ),
     );
   }
 
   Widget _bilgiSutunuOlustur(String etiket, String deger, Color renk) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           etiket,
           style: GoogleFonts.poppins(
-            color: colorScheme.onSurface.withOpacity(0.6),
+            color: AppColors.text(context).withOpacity(0.6),
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),

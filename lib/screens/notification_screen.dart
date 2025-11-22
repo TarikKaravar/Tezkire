@@ -2,23 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_app/services/notification_service.dart';
-import 'package:permission_handler/permission_handler.dart'; // Yeni eklendi
-
-class AppColors {
-  static const Color primary = Color(0xFF4CAF50);
-  static const Color secondary = Color(0xFF81C784);
-
-  static Color getPrayerColor(BuildContext context) {
-    return Theme.of(context).colorScheme.primary;
-  }
-
-  static Color primaryLight(BuildContext context) {
-    return Theme.of(context).colorScheme.primary.withOpacity(0.1);
-  }
-}
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_app/screens/app_colors.dart';
 
 class NotificationScreen extends StatefulWidget {
-  const NotificationScreen({Key? key}) : super(key: key);
+  const NotificationScreen({super.key});
 
   @override
   State<NotificationScreen> createState() => _NotificationScreenState();
@@ -68,7 +56,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
   void initState() {
     super.initState();
     _loadSettings();
-    _checkAlarmPermission(); // İzin kontrolünü başlat
+    _checkAlarmPermission();
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -91,7 +79,6 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
     super.dispose();
   }
 
-  // SCHEDULE_EXACT_ALARM iznini kontrol et ve iste
   Future<void> _checkAlarmPermission() async {
     final status = await Permission.scheduleExactAlarm.status;
     if (status.isDenied) {
@@ -104,7 +91,6 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
     }
   }
 
-  // İzin reddedildiğinde kullanıcıyı bilgilendiren dialog
   void _showPermissionDialog() {
     showDialog(
       context: context,
@@ -122,7 +108,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             onPressed: () => Navigator.pop(context),
             child: Text(
               'İptal',
-              style: GoogleFonts.poppins(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+              style: GoogleFonts.poppins(color: Colors.grey),
             ),
           ),
           TextButton(
@@ -132,7 +118,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             },
             child: Text(
               'Ayarlara Git',
-              style: GoogleFonts.poppins(color: Theme.of(context).colorScheme.primary),
+              style: GoogleFonts.poppins(color: AppColors.primary),
             ),
           ),
         ],
@@ -176,13 +162,10 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
       await prefs.setInt('minutes_$key', notificationMinutes[key]!);
     }
 
-    // Reschedule notifications after saving settings
     await NotificationService().schedulePrayerNotifications();
   }
 
   void _showTimePickerDialog(String prayerKey) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -191,7 +174,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: colorScheme.surface,
+              backgroundColor: AppColors.surface(context),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -199,7 +182,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                 '${turkishPrayerNames[prayerKey]} Bildirimi',
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
+                  color: AppColors.text(context),
                 ),
               ),
               content: Column(
@@ -209,7 +192,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                     'Namaz vaktinden kaç dakika önce hatırlatılsın?',
                     style: GoogleFonts.poppins(
                       fontSize: 14,
-                      color: colorScheme.onSurface.withOpacity(0.7),
+                      color: AppColors.text(context).withOpacity(0.7),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -217,7 +200,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: colorScheme.primary.withOpacity(0.1),
+                      color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -227,7 +210,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                           style: GoogleFonts.poppins(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: colorScheme.primary,
+                            color: AppColors.primary,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -236,8 +219,8 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                           min: 5,
                           max: 60,
                           divisions: 11,
-                          activeColor: colorScheme.primary,
-                          inactiveColor: colorScheme.onSurface.withOpacity(0.3),
+                          activeColor: AppColors.primary,
+                          inactiveColor: Colors.grey.withOpacity(0.3),
                           onChanged: (value) {
                             setDialogState(() {
                               tempMinutes = value.round();
@@ -247,14 +230,8 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('5 dk', style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: colorScheme.onSurface.withOpacity(0.6),
-                            )),
-                            Text('60 dk', style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: colorScheme.onSurface.withOpacity(0.6),
-                            )),
+                            Text('5 dk', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),
+                            Text('60 dk', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),
                           ],
                         ),
                       ],
@@ -265,12 +242,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text(
-                    'İptal',
-                    style: GoogleFonts.poppins(
-                      color: colorScheme.onSurface.withOpacity(0.6),
-                    ),
-                  ),
+                  child: Text('İptal', style: GoogleFonts.poppins(color: Colors.grey)),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -281,16 +253,11 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                     Navigator.of(context).pop();
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    foregroundColor: colorScheme.onPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: Text(
-                    'Kaydet',
-                    style: GoogleFonts.poppins(color: colorScheme.onPrimary),
-                  ),
+                  child: Text('Kaydet', style: GoogleFonts.poppins()),
                 ),
               ],
             );
@@ -301,30 +268,28 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
   }
 
   Widget _buildMasterSwitch(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Container(
       margin: const EdgeInsets.all(20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: masterNotification
-              ? [colorScheme.primary.withOpacity(0.9), colorScheme.primary.withOpacity(0.7)]
-              : [colorScheme.surface, colorScheme.surface],
+              ? [AppColors.primary.withOpacity(0.9), AppColors.primary.withOpacity(0.7)]
+              : [AppColors.surface(context), AppColors.surface(context)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: masterNotification
-              ? colorScheme.primary.withOpacity(0.3)
-              : colorScheme.outline.withOpacity(0.3),
+              ? AppColors.primary.withOpacity(0.3)
+              : Colors.grey.withOpacity(0.3),
         ),
         boxShadow: [
           BoxShadow(
             color: masterNotification
-                ? colorScheme.primary.withOpacity(0.2)
-                : colorScheme.shadow.withOpacity(0.05),
+                ? AppColors.primary.withOpacity(0.2)
+                : Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -336,13 +301,13 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: masterNotification
-                  ? colorScheme.onPrimary.withOpacity(0.2)
-                  : colorScheme.primary.withOpacity(0.1),
+                  ? Colors.white.withOpacity(0.2)
+                  : AppColors.primary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               masterNotification ? Icons.notifications_active : Icons.notifications_off,
-              color: masterNotification ? colorScheme.onPrimary : colorScheme.primary,
+              color: masterNotification ? Colors.white : AppColors.primary,
               size: 28,
             ),
           ),
@@ -356,7 +321,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: masterNotification ? colorScheme.onPrimary : colorScheme.onSurface,
+                    color: masterNotification ? Colors.white : AppColors.text(context),
                   ),
                 ),
                 Text(
@@ -364,8 +329,8 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     color: masterNotification
-                        ? colorScheme.onPrimary.withOpacity(0.8)
-                        : colorScheme.onSurface.withOpacity(0.6),
+                        ? Colors.white.withOpacity(0.8)
+                        : AppColors.text(context).withOpacity(0.6),
                   ),
                 ),
               ],
@@ -379,9 +344,9 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                 _saveSettings();
               });
             },
-            activeColor: colorScheme.onPrimary,
-            activeTrackColor: colorScheme.onPrimary.withOpacity(0.3),
-            inactiveTrackColor: colorScheme.onSurface.withOpacity(0.3),
+            activeColor: Colors.white,
+            activeTrackColor: Colors.white24,
+            inactiveTrackColor: Colors.grey.withOpacity(0.3),
           ),
         ],
       ),
@@ -389,7 +354,6 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
   }
 
   Widget _buildPrayerNotificationCard(String prayerKey) {
-    final colorScheme = Theme.of(context).colorScheme;
     final isEnabled = prayerNotifications[prayerKey] ?? false;
     final minutes = notificationMinutes[prayerKey] ?? 30;
 
@@ -398,7 +362,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Card(
         elevation: isEnabled ? 6 : 2,
-        color: colorScheme.surface,
+        color: AppColors.surface(context),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -409,8 +373,8 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             gradient: isEnabled
                 ? LinearGradient(
                     colors: [
-                      colorScheme.primary.withOpacity(0.1),
-                      colorScheme.primary.withOpacity(0.05),
+                      AppColors.primary.withOpacity(0.1),
+                      AppColors.primary.withOpacity(0.05),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -425,13 +389,13 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: isEnabled
-                          ? colorScheme.primary.withOpacity(0.2)
-                          : colorScheme.onSurface.withOpacity(0.1),
+                          ? AppColors.primary.withOpacity(0.2)
+                          : Colors.grey.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
                       prayerIcons[prayerKey],
-                      color: isEnabled ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
+                      color: isEnabled ? AppColors.primary : Colors.grey,
                       size: 24,
                     ),
                   ),
@@ -445,7 +409,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                           style: GoogleFonts.poppins(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
-                            color: isEnabled ? colorScheme.onSurface : colorScheme.onSurface.withOpacity(0.5),
+                            color: isEnabled ? AppColors.text(context) : AppColors.text(context).withOpacity(0.5),
                           ),
                         ),
                         Text(
@@ -453,8 +417,8 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             color: isEnabled
-                                ? colorScheme.primary
-                                : colorScheme.onSurface.withOpacity(0.5),
+                                ? AppColors.primary
+                                : AppColors.text(context).withOpacity(0.5),
                             fontWeight: isEnabled ? FontWeight.w500 : FontWeight.w400,
                           ),
                         ),
@@ -471,9 +435,9 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                             });
                           }
                         : null,
-                    activeColor: colorScheme.primary,
-                    activeTrackColor: colorScheme.primary.withOpacity(0.3),
-                    inactiveTrackColor: colorScheme.onSurface.withOpacity(0.3),
+                    activeColor: AppColors.primary,
+                    activeTrackColor: AppColors.primary.withOpacity(0.3),
+                    inactiveTrackColor: Colors.grey.withOpacity(0.3),
                   ),
                 ],
               ),
@@ -486,18 +450,18 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: colorScheme.primary.withOpacity(0.1),
+                      color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: colorScheme.primary.withOpacity(0.3),
+                        color: AppColors.primary.withOpacity(0.3),
                       ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.schedule,
-                          color: colorScheme.primary,
+                          color: AppColors.primary,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
@@ -506,7 +470,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: colorScheme.primary,
+                            color: AppColors.primary,
                           ),
                         ),
                       ],
@@ -522,16 +486,14 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
   }
 
   Widget _buildSoundSettings(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: colorScheme.outline.withOpacity(0.2),
+          color: Colors.grey.withOpacity(0.2),
         ),
       ),
       child: Column(
@@ -542,7 +504,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: colorScheme.onSurface,
+              color: AppColors.text(context),
             ),
           ),
           const SizedBox(height: 16),
@@ -550,7 +512,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             children: [
               Icon(
                 Icons.volume_up,
-                color: soundEnabled ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
+                color: soundEnabled ? AppColors.primary : Colors.grey,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -558,7 +520,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   'Ses',
                   style: GoogleFonts.poppins(
                     fontSize: 16,
-                    color: colorScheme.onSurface,
+                    color: AppColors.text(context),
                   ),
                 ),
               ),
@@ -572,9 +534,9 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                         });
                       }
                     : null,
-                activeColor: colorScheme.primary,
-                activeTrackColor: colorScheme.primary.withOpacity(0.3),
-                inactiveTrackColor: colorScheme.onSurface.withOpacity(0.3),
+                activeColor: AppColors.primary,
+                activeTrackColor: AppColors.primary.withOpacity(0.3),
+                inactiveTrackColor: Colors.grey.withOpacity(0.3),
               ),
             ],
           ),
@@ -583,7 +545,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
             children: [
               Icon(
                 Icons.vibration,
-                color: vibrationEnabled ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
+                color: vibrationEnabled ? AppColors.primary : Colors.grey,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -591,7 +553,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   'Titreşim',
                   style: GoogleFonts.poppins(
                     fontSize: 16,
-                    color: colorScheme.onSurface,
+                    color: AppColors.text(context),
                   ),
                 ),
               ),
@@ -605,9 +567,9 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                         });
                       }
                     : null,
-                activeColor: colorScheme.primary,
-                activeTrackColor: colorScheme.primary.withOpacity(0.3),
-                inactiveTrackColor: colorScheme.onSurface.withOpacity(0.3),
+                activeColor: AppColors.primary,
+                activeTrackColor: AppColors.primary.withOpacity(0.3),
+                inactiveTrackColor: Colors.grey.withOpacity(0.3),
               ),
             ],
           ),
@@ -618,10 +580,8 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
-      backgroundColor: colorScheme.background,
+      backgroundColor: AppColors.background(context),
       body: SafeArea(
         child: SlideTransition(
           position: _slideAnimation,
@@ -632,7 +592,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                 padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.8)],
+                    colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -647,7 +607,7 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
                   style: GoogleFonts.poppins(
                     fontSize: 24,
                     fontWeight: FontWeight.w600,
-                    color: colorScheme.onPrimary,
+                    color: Colors.white,
                   ),
                 ),
               ),

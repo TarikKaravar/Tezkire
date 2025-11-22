@@ -1,23 +1,18 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_app/services/bottom_menu.dart';
-import 'package:flutter_app/screens/profile_screen.dart';
-import 'package:flutter_app/screens/notification_screen.dart';
-import 'package:flutter_app/screens/setting_screen.dart';
 import 'package:flutter_app/services/prayer_time_service.dart';
+import 'package:flutter_app/screens/app_colors.dart'; // Renkler buradan geliyor
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  int _selectedIndex = 0;
   Map<String, String> prayerTimes = {};
   bool isLoading = true;
   String currentDate = '';
@@ -56,7 +51,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     'Van', 'Yalova', 'Yozgat', 'Zonguldak'
   ];
 
-  // Türkçe sıralama fonksiyonu
   String _turkishSort(String text) {
     return text
         .replaceAll('Ç', 'C1')
@@ -73,7 +67,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         .replaceAll('ü', 'u1');
   }
 
-  // Sıralanmış şehirler listesi
   List<String> get sortedCitiesTR {
     final cities = List<String>.from(citiesTR);
     cities.sort((a, b) => _turkishSort(a).compareTo(_turkishSort(b)));
@@ -85,10 +78,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _loadSelectedCity(); // Load the saved city
+    _loadSelectedCity();
     _setCurrentDate();
     
-    // Animasyon kontrolleri başlatma
     _citySelectionController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -126,7 +118,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // Load the selected city from SharedPreferences
   Future<void> _loadSelectedCity() async {
     final prefs = await SharedPreferences.getInstance();
     final savedCity = prefs.getString('selectedCity');
@@ -135,11 +126,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _selectedCity = savedCity;
       });
     }
-    // Fetch prayer times after loading the city
     _fetchPrayerTimes();
   }
 
-  // Save the selected city to SharedPreferences
   Future<void> _saveSelectedCity(String city) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('selectedCity', city);
@@ -173,9 +162,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _startCountdown();
     } catch (e) {
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Namaz vakitleri alınamadı: $e')),
-      );
     }
   }
 
@@ -264,9 +250,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildModernCitySelector(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    
+    // AppColors.primary KULLANIMI (Haki Yeşil)
     return AnimatedBuilder(
       animation: _slideAnimation,
       builder: (context, child) {
@@ -277,8 +261,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  colorScheme.primary.withOpacity(0.9),
-                  colorScheme.primary.withOpacity(0.7),
+                  AppColors.primary.withOpacity(0.9),
+                  AppColors.primary.withOpacity(0.7),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -286,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: colorScheme.primary.withOpacity(0.2),
+                  color: AppColors.primary.withOpacity(0.2),
                   blurRadius: 15,
                   offset: const Offset(0, 8),
                 ),
@@ -294,7 +278,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
             child: Column(
               children: [
-                // Ana şehir seçici butonu
                 InkWell(
                   onTap: _toggleCitySelection,
                   borderRadius: BorderRadius.circular(20),
@@ -305,12 +288,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: colorScheme.onPrimary.withOpacity(0.2),
+                            color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Icon(
+                          child: const Icon(
                             Icons.location_city,
-                            color: colorScheme.onPrimary,
+                            color: Colors.white,
                             size: 24,
                           ),
                         ),
@@ -323,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 'Şehir',
                                 style: GoogleFonts.poppins(
                                   fontSize: 12,
-                                  color: colorScheme.onPrimary.withOpacity(0.8),
+                                  color: Colors.white.withOpacity(0.8),
                                   fontWeight: FontWeight.w400,
                                 ),
                               ),
@@ -332,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 _selectedCity,
                                 style: GoogleFonts.poppins(
                                   fontSize: 18,
-                                  color: colorScheme.onPrimary,
+                                  color: Colors.white,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -342,9 +325,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         AnimatedRotation(
                           turns: _isCitySelectionExpanded ? 0.5 : 0.0,
                           duration: const Duration(milliseconds: 300),
-                          child: Icon(
+                          child: const Icon(
                             Icons.keyboard_arrow_down,
-                            color: colorScheme.onPrimary,
+                            color: Colors.white,
                             size: 28,
                           ),
                         ),
@@ -353,7 +336,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 ),
                 
-                // Genişleyen şehir listesi - DÜZELTİLMİŞ BÖLÜM
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
@@ -364,24 +346,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           child: Container(
                             margin: const EdgeInsets.only(top: 8, left: 12, right: 12, bottom: 12),
                             decoration: BoxDecoration(
-                              color: colorScheme.surface,
+                              color: AppColors.surface(context),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: colorScheme.outline.withOpacity(0.2),
+                                color: Colors.grey.withOpacity(0.2),
                               ),
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(16),
                               child: Column(
                                 children: [
-                                  // Arama çubuğu (opsiyonel)
                                   Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: colorScheme.surface,
+                                      color: AppColors.surface(context),
                                       border: Border(
                                         bottom: BorderSide(
-                                          color: colorScheme.outline.withOpacity(0.1),
+                                          color: Colors.grey.withOpacity(0.1),
                                         ),
                                       ),
                                     ),
@@ -390,11 +371,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                       style: GoogleFonts.poppins(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
-                                        color: colorScheme.onSurface.withOpacity(0.7),
+                                        color: AppColors.text(context).withOpacity(0.7),
                                       ),
                                     ),
                                   ),
-                                  // Şehir listesi
                                   Expanded(
                                     child: ListView.builder(
                                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -421,7 +401,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                               ),
                                               decoration: BoxDecoration(
                                                 color: isSelected 
-                                                    ? colorScheme.primary.withOpacity(0.1)
+                                                    ? AppColors.primary.withOpacity(0.1)
                                                     : Colors.transparent,
                                               ),
                                               child: Row(
@@ -431,7 +411,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                                     height: 8,
                                                     decoration: BoxDecoration(
                                                       color: isSelected 
-                                                          ? colorScheme.primary 
+                                                          ? AppColors.primary 
                                                           : Colors.transparent,
                                                       shape: BoxShape.circle,
                                                     ),
@@ -446,15 +426,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                                             ? FontWeight.w600 
                                                             : FontWeight.w400,
                                                         color: isSelected 
-                                                            ? colorScheme.primary 
-                                                            : colorScheme.onSurface,
+                                                            ? AppColors.primary 
+                                                            : AppColors.text(context),
                                                       ),
                                                     ),
                                                   ),
                                                   if (isSelected)
-                                                    Icon(
+                                                    const Icon(
                                                       Icons.check_circle,
-                                                      color: colorScheme.primary,
+                                                      color: AppColors.primary,
                                                       size: 18,
                                                     ),
                                                 ],
@@ -481,8 +461,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildCountdownWidget(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     if (nextPrayerName.isEmpty || remainingTime == Duration.zero) {
       return const SizedBox.shrink();
     }
@@ -493,15 +471,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            colorScheme.secondary.withOpacity(0.1),
-            colorScheme.secondary.withOpacity(0.05),
+            AppColors.secondary.withOpacity(0.1),
+            AppColors.secondary.withOpacity(0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: colorScheme.secondary.withOpacity(0.3),
+          color: AppColors.secondary.withOpacity(0.3),
           width: 1,
         ),
       ),
@@ -512,16 +490,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w500,
-              color: colorScheme.onBackground.withOpacity(0.8),
+              color: AppColors.text(context).withOpacity(0.8),
             ),
           ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.access_time,
-                color: colorScheme.secondary,
+                color: AppColors.secondary,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -530,7 +508,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 style: GoogleFonts.poppins(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: colorScheme.secondary,
+                  color: AppColors.secondary,
                 ),
               ),
             ],
@@ -540,7 +518,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             'kalan süre',
             style: GoogleFonts.poppins(
               fontSize: 12,
-              color: colorScheme.onBackground.withOpacity(0.6),
+              color: AppColors.text(context).withOpacity(0.6),
             ),
           ),
         ],
@@ -548,45 +526,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildPrayerContent(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
+  @override
+  Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.8)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(20),
-              bottomRight: Radius.circular(20),
-            ),
-          ),
-          child: Text(
-            'Namaz Vakitleri',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontSize: 24,
-              fontWeight: FontWeight.w600,
-              color: colorScheme.onPrimary,
-            ),
-          ),
-        ),
-        
-        // Modern şehir seçici
+        // --- İŞTE BURADA O MOR BARI KALDIRDIK ---
+        // Onun yerine sadece MainScreen'deki Menü butonuna yer açmak için boşluk var
+        const SizedBox(height: 80), 
+
+        // Şehir Seçici (Haki Yeşil)
         _buildModernCitySelector(context),
         
         Expanded(
           child: isLoading
-              ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
+              ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
               : RefreshIndicator(
                   onRefresh: _fetchPrayerTimes,
-                  color: colorScheme.primary,
+                  color: AppColors.primary,
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     child: Column(
@@ -600,7 +556,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 style: GoogleFonts.poppins(
                                   fontSize: 22,
                                   fontWeight: FontWeight.w600,
-                                  color: colorScheme.onBackground,
+                                  color: AppColors.text(context),
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -608,14 +564,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 currentDate,
                                 style: GoogleFonts.poppins(
                                   fontSize: 16,
-                                  color: colorScheme.onBackground.withOpacity(0.7),
+                                  color: AppColors.text(context).withOpacity(0.7),
                                 ),
                               ),
                             ],
                           ),
                         ),
+                        
                         _buildCountdownWidget(context),
+                        
                         const SizedBox(height: 8),
+                        
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: Column(
@@ -637,7 +596,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                               style: GoogleFonts.poppins(
                                                 fontSize: 18,
                                                 fontWeight: FontWeight.w500,
-                                                color: colorScheme.onSurface,
+                                                color: AppColors.text(context),
                                               ),
                                             ),
                                             Text(
@@ -645,7 +604,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                               style: GoogleFonts.poppins(
                                                 fontSize: 18,
                                                 fontWeight: FontWeight.w600,
-                                                color: colorScheme.primary,
+                                                color: AppColors.primary, // Vakitler Haki Yeşil
                                               ),
                                             ),
                                           ],
@@ -657,7 +616,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               ElevatedButton(
                                 onPressed: _fetchPrayerTimes,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: colorScheme.primary,
+                                  backgroundColor: AppColors.primary, // Buton Haki Yeşil
                                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -667,10 +626,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   'Vakitleri Yenile',
                                   style: GoogleFonts.poppins(
                                     fontSize: 16,
-                                    color: colorScheme.onPrimary,
+                                    color: Colors.white,
                                   ),
                                 ),
                               ),
+                              // Altta biraz boşluk bırakalım ki en alt barın arkasında kalmasın
+                              const SizedBox(height: 30), 
                             ],
                           ),
                         ),
@@ -680,30 +641,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
         ),
       ],
-    );
-  }
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final screens = [
-      _buildPrayerContent(context),
-      const NotificationScreen(),
-      const ProfileScreen(),
-      const SettingsScreen(),
-    ];
-
-    return Scaffold(
-      body: SafeArea(child: screens[_selectedIndex]),
-      bottomNavigationBar: BottomMenu(
-        selectedIndex: _selectedIndex,
-        onItemTapped: _onItemTapped,
-      ),
     );
   }
 }
