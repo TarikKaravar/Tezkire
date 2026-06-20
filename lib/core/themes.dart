@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -50,13 +51,13 @@ class AppThemes {
     ),
     
     // AppBar teması
-    appBarTheme: AppBarTheme(
+    appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.surface,
       foregroundColor: AppColors.text,
       elevation: 0,
       centerTitle: true,
       surfaceTintColor: Colors.transparent,
-      systemOverlayStyle: const SystemUiOverlayStyle(
+      systemOverlayStyle: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
         systemNavigationBarColor: Colors.transparent,
@@ -71,7 +72,7 @@ class AppThemes {
     ),
     
     // Text teması
-    textTheme: TextTheme(
+    textTheme: const TextTheme(
       headlineLarge: TextStyle(
         color: AppColors.text,
         fontSize: 32,
@@ -119,8 +120,8 @@ class AppThemes {
       ),
     ),
     
-    // Card teması
-    cardTheme: CardTheme(
+    // Card teması (DÜZELTİLDİ: CardTheme -> CardThemeData)
+    cardTheme: CardThemeData(
       color: AppColors.surface,
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.1),
@@ -180,17 +181,17 @@ class AppThemes {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppColors.primary, width: 2),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppColors.error, width: 1),
+        borderSide: const BorderSide(color: AppColors.error, width: 1),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     ),
     
     // Icon teması
-    iconTheme: IconThemeData(
+    iconTheme: const IconThemeData(
       color: AppColors.textSecondary,
       size: 24,
     ),
@@ -202,7 +203,7 @@ class AppThemes {
     ),
     
     // Bottom Navigation Bar teması
-    bottomNavigationBarTheme: BottomNavigationBarThemeData(
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: AppColors.surface,
       selectedItemColor: AppColors.primary,
       unselectedItemColor: AppColors.textSecondary,
@@ -235,13 +236,13 @@ class AppThemes {
     ),
     
     // AppBar teması
-    appBarTheme: AppBarTheme(
+    appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.surfaceDark,
       foregroundColor: AppColors.textDark,
       elevation: 0,
       centerTitle: true,
       surfaceTintColor: Colors.transparent,
-      systemOverlayStyle: const SystemUiOverlayStyle(
+      systemOverlayStyle: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
         systemNavigationBarColor: Colors.transparent,
@@ -256,7 +257,7 @@ class AppThemes {
     ),
     
     // Text teması
-    textTheme: TextTheme(
+    textTheme: const TextTheme(
       headlineLarge: TextStyle(
         color: AppColors.textDark,
         fontSize: 32,
@@ -304,8 +305,8 @@ class AppThemes {
       ),
     ),
     
-    // Card teması
-    cardTheme: CardTheme(
+    // Card teması (DÜZELTİLDİ: CardTheme -> CardThemeData)
+    cardTheme: CardThemeData(
       color: AppColors.surfaceDark,
       elevation: 4,
       shadowColor: Colors.black.withOpacity(0.3),
@@ -365,17 +366,17 @@ class AppThemes {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppColors.accentDark, width: 2),
+        borderSide: const BorderSide(color: AppColors.accentDark, width: 2),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppColors.errorDark, width: 1),
+        borderSide: const BorderSide(color: AppColors.errorDark, width: 1),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     ),
     
     // Icon teması
-    iconTheme: IconThemeData(
+    iconTheme: const IconThemeData(
       color: AppColors.textSecondaryDark,
       size: 24,
     ),
@@ -387,7 +388,7 @@ class AppThemes {
     ),
     
     // Bottom Navigation Bar teması
-    bottomNavigationBarTheme: BottomNavigationBarThemeData(
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: AppColors.surfaceDark,
       selectedItemColor: AppColors.accentDark,
       unselectedItemColor: AppColors.textSecondaryDark,
@@ -421,3 +422,4 @@ class AppThemes {
     return isDark(context) ? AppColors.primaryDark : AppColors.primary;
   }
 }
+
