@@ -4,8 +4,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // Tema yönetimi için singleton class
 class ThemeManager extends ChangeNotifier implements ValueListenable<ThemeMode> {
-  static final ThemeManager _instance = ThemeManager._internal();
-  factory ThemeManager() => _instance;
+  
+  // İŞTE BURASI DÜZELTİLDİ: LateInitializationError hatasını önler
+  static ThemeManager? _instance;
+  
+  factory ThemeManager() {
+    _instance ??= ThemeManager._internal();
+    return _instance!;
+  }
+  
   ThemeManager._internal();
 
   ThemeMode _themeMode = ThemeMode.system;
@@ -14,11 +21,9 @@ class ThemeManager extends ChangeNotifier implements ValueListenable<ThemeMode> 
   ThemeMode get themeMode => _themeMode;
   bool get isInitialized => _isInitialized;
   
-  // ValueListenable için gerekli
   @override
   ThemeMode get value => _themeMode;
 
-  // SharedPreferences'tan tema ayarını yükle
   Future<void> loadThemeFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -33,14 +38,12 @@ class ThemeManager extends ChangeNotifier implements ValueListenable<ThemeMode> 
     }
   }
 
-  // Tema değiştir ve kaydet
   Future<void> changeTheme(ThemeMode newTheme) async {
     if (_themeMode == newTheme) return;
     
     _themeMode = newTheme;
-    notifyListeners(); // Bu çok önemli - tüm dinleyicilere bildirir
+    notifyListeners(); 
     
-    // SharedPreferences'a kaydet
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('theme_mode', newTheme.index);
@@ -49,7 +52,6 @@ class ThemeManager extends ChangeNotifier implements ValueListenable<ThemeMode> 
     }
   }
 
-  // Tema isimlerini almak için yardımcı metodlar
   String getThemeName(ThemeMode theme) {
     switch (theme) {
       case ThemeMode.system:

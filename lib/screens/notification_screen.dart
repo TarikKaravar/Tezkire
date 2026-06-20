@@ -162,7 +162,8 @@ class _NotificationScreenState extends State<NotificationScreen> with TickerProv
       await prefs.setInt('minutes_$key', notificationMinutes[key]!);
     }
 
-    await NotificationService().schedulePrayerNotifications();
+    // YENİ YAPI: Doğrudan sınıf adı üzerinden statik metodu çağırıyoruz
+    await NotificationService.schedulePrayerNotifications();
   }
 
   void _showTimePickerDialog(String prayerKey) {

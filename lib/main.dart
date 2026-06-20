@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_app/core/themes.dart';
-import 'package:flutter_app/services/notification_service.dart';
+
+// Doğrudan senin kullandığın servis dosyasını çağırıyoruz
+import 'package:flutter_app/services/notification_service.dart'; 
+
 import 'screens/app_colors.dart';
 import 'screens/loading_screen.dart';
 import 'core/theme_manager.dart';
 
 void main() async {
+  // Widget ağacını başlatmadan önce Flutter'ın hazır olduğundan emin oluyoruz
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize NotificationService
-  await NotificationService().init();
-  await NotificationService().schedulePrayerNotifications();
+  // YENİ YAPI: NotificationService() şeklinde parantez AÇMIYORUZ. 
+  // Doğrudan statik metotları çağırıyoruz. (Çökme riskini sıfırlar)
+  await NotificationService.init();
+  await NotificationService.schedulePrayerNotifications();
 
   // Tema ayarlarını yükle
   await ThemeManager().loadThemeFromPrefs();
